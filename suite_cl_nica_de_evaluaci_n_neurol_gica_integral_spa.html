@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroEval Pro — Suite Clínica de Evaluación Neurológica Integral</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para Radar Neurológico y Gráficos Clínicos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .font-mono-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Transición suave entre secciones SPA */
+        .vista-seccion {
+            animation: fadeInVista 0.25s ease-out;
+        }
+        @keyframes fadeInVista {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Estilos de impresión para reportes clínicos */
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: #ffffff !important; }
+            .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+        }
+        /* Canvas responsivo para Kapandji / MediaPipe */
+        .mot-video-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #0f172a;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        .mot-video-container video,
+        .mot-video-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        /* Espejo horizontal natural para cámara frontal */
+        .mot-mirror {
+            transform: scaleX(-1);
+        }
+        /* Pulso de micrófono activo en evaluación de lenguaje */
+        @keyframes pulseMic {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.45); }
+            50% { box-shadow: 0 0 0 12px rgba(225, 29, 72, 0); }
+        }
+        .len-mic-active {
+            animation: pulseMic 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+    <!-- BARRA DE NAVEGACIÓN SUPERIOR PERSISTENTE (SPA) -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3 gap-3">
+                <!-- Marca Clínica -->
+                <div class="flex items-center justify-between">
+                    <button onclick="cambiarVista('vista-inicio')" class="flex items-center gap-3 text-left group focus:outline-none">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                            <i data-lucide="activity" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-extrabold text-slate-900 text-lg tracking-tight">NeuroEval<span class="text-indigo-600">Pro</span></span>
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">SPA v4.0</span>
+                            </div>
+                            <p class="text-xs text-slate-500 font-medium">Plataforma Integrada de Tamizaje Neurológico</p>
+                        </div>
+                    </button>
+
+                    <!-- Indicador de Hardware Activo -->
+                    <div id="spa-hw-badge" class="hidden md:hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                        <span>Sensor Activo</span>
+                    </div>
+                </div>
+
+                <!-- Navegación entre los 4 Módulos -->
+                <nav class="flex flex-wrap items-center gap-1.5 sm:gap-2" aria-label="Navegación de módulos">
+                    <button id="nav-btn-vista-inicio" onclick="cambiarVista('vista-inicio')"
+                        class="nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-indigo-600 text-white shadow-sm">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                        <span>Inicio & Perfil</span>
+                    </button>
+                    <button id="nav-btn-vista-cognitiva" onclick="cambiarVista('vista-cognitiva')"
+                        class="nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <i data-lucide="brain" class="w-4 h-4 text-violet-600"></i>
+                        <span>Cognitiva</span>
+                    </button>
+                    <button id="nav-btn-vista-motora" onclick="cambiarVista('vista-motora')"
+                        class="nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <i data-lucide="hand" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Motora EESS</span>
+                    </button>
+                    <button id="nav-btn-vista-lenguaje" onclick="cambiarVista('vista-lenguaje')"
+                        class="nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <i data-lucide="mic" class="w-4 h-4 text-rose-600"></i>
+                        <span>Lenguaje (ART)</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- NOTIFICACIÓN FLOTANTE GLOBAL (Sin alert() ni confirm()) -->
+    <div id="spa-toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+    <!-- MODAL DE CONFIRMACIÓN PERSONALIZADO (Reemplazo seguro de confirm()) -->
+    <div id="spa-confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div class="flex items-center gap-3 text-amber-600 mb-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <h3 id="spa-confirm-title" class="text-lg font-bold text-slate-900">Confirmar Acción</h3>
+            </div>
+            <p id="spa-confirm-msg" class="text-sm text-slate-600 mb-6 leading-relaxed">¿Está seguro de continuar?</p>
+            <div class="flex justify-end gap-3">
+                <button id="spa-confirm-cancel" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                <button id="spa-confirm-ok" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 transition shadow-sm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL DE VISTAS -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ===================================================================== -->
+        <!-- VISTA 1: CENTRO DE EVALUACIÓN INICIAL & PERFIL MULTIDOMINIO (ini_)    -->
+        <!-- ===================================================================== -->
+        <section id="vista-inicio" class="vista-seccion space-y-6">
+            <!-- Encabezado y Acciones Globales -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg mb-2">
+                        <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Resumen Clínico Integrado
+                    </span>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Centro de Evaluación Neurológica Inicial</h1>
+                    <p class="text-sm text-slate-500 mt-1">Consolidación en tiempo real de dominios Cognitivo, Motor de Extremidad Superior y Lenguaje.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2.5 no-print">
+                    <button onclick="ini_cargarDatosDemo()" class="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>Cargar Demo Clínica</span>
+                    </button>
+                    <button onclick="ini_exportarCSV()" class="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Exportar CSV</span>
+                    </button>
+                    <button onclick="window.print()" class="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-800 text-white hover:bg-slate-900 transition shadow-sm flex items-center gap-2">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Imprimir Informe</span>
+                    </button>
+                    <button onclick="ini_solicitarReinicioTotal()" class="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition flex items-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Limpiar Todo</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ficha Demográfica y Clínica del Paciente -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="user-check" class="w-5 h-5 text-indigo-600"></i>
+                        <span>Identificación y Antecedentes del Paciente</span>
+                    </h2>
+                    <span id="ini-patient-saved-badge" class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                        Guardado automático activo
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="lg:col-span-2">
+                        <label for="ini-patient-name" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nombre Completo / Código ID</label>
+                        <input type="text" id="ini-patient-name" oninput="ini_savePatientInfo()" placeholder="Ej: María Elena Soto (HC-4092)"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="ini-patient-age" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Edad (años)</label>
+                        <input type="number" id="ini-patient-age" oninput="ini_savePatientInfo()" min="1" max="120" placeholder="68"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="ini-patient-laterality" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Dominancia / Hemiparesia</label>
+                        <select id="ini-patient-laterality" onchange="ini_savePatientInfo()"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="Diestro / Sin lateralización">Diestro / Sin lateralización</option>
+                            <option value="Diestro / Hemiparesia Derecha">Diestro / Hemiparesia Derecha</option>
+                            <option value="Diestro / Hemiparesia Izquierda">Diestro / Hemiparesia Izquierda</option>
+                            <option value="Zurdo / Hemiparesia Derecha">Zurdo / Hemiparesia Derecha</option>
+                            <option value="Zurdo / Hemiparesia Izquierda">Zurdo / Hemiparesia Izquierda</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="ini-patient-dx" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Sospecha / Diagnóstico</label>
+                        <input type="text" id="ini-patient-dx" oninput="ini_savePatientInfo()" placeholder="Ej: ACV Isquémico ACM Izq"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjetas de Acceso Directo y Resumen de los 3 Módulos Clínicos -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Tarjeta Módulo Cognitivo -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between hover:border-violet-300 transition-all">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-11 h-11 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                                <i data-lucide="brain" class="w-6 h-6"></i>
+                            </div>
+                            <span id="ini-status-cog" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Pendiente</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">1. Evaluación Cognitiva</h3>
+                        <p class="text-xs text-slate-500 mt-1">MMSE (Orientación, Cálculo, Lenguaje), MoCA (TMT-B visoespacial, Memoria diferida) y FAB (Control inhibitorio Go/No-Go).</p>
+                        <div class="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-500 font-medium">Índice Global Cognitivo:</span>
+                                <span id="ini-score-cog" class="font-bold text-violet-700 font-mono-code">-- %</span>
+                            </div>
+                            <div id="ini-detail-cog" class="text-xs text-slate-600">Sin registros guardados aún.</div>
+                        </div>
+                    </div>
+                    <button onclick="cambiarVista('vista-cognitiva')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm no-print">
+                        <span>Abrir Módulo Cognitivo</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Tarjeta Módulo Motor EESS -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between hover:border-emerald-300 transition-all">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                <i data-lucide="hand" class="w-6 h-6"></i>
+                            </div>
+                            <span id="ini-status-mot" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Pendiente</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">2. Evaluación Motora EESS</h3>
+                        <p class="text-xs text-slate-500 mt-1">Oposición del pulgar Kapandji con visión artificial (21 landmarks MediaPipe), Fugl-Meyer EESS (66 pts) y ARAT funcional (57 pts).</p>
+                        <div class="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-500 font-medium">Índice Motor Integrado:</span>
+                                <span id="ini-score-mot" class="font-bold text-emerald-700 font-mono-code">-- %</span>
+                            </div>
+                            <div id="ini-detail-mot" class="text-xs text-slate-600">Sin registros guardados aún.</div>
+                        </div>
+                    </div>
+                    <button onclick="cambiarVista('vista-motora')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm no-print">
+                        <span>Abrir Módulo Motor</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Tarjeta Módulo Lenguaje ART -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between hover:border-rose-300 transition-all">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+                                <i data-lucide="mic" class="w-6 h-6"></i>
+                            </div>
+                            <span id="ini-status-len" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Pendiente</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">3. Evaluación de Lenguaje (ART)</h3>
+                        <p class="text-xs text-slate-500 mt-1">Prueba Rápida de Afasia: Comprensión auditiva, Denominación visual con reconocimiento de voz, Repetición y Fluencia semántica 60s.</p>
+                        <div class="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-500 font-medium">Índice Global ART:</span>
+                                <span id="ini-score-len" class="font-bold text-rose-700 font-mono-code">-- %</span>
+                            </div>
+                            <div id="ini-detail-len" class="text-xs text-slate-600">Sin registros guardados aún.</div>
+                        </div>
+                    </div>
+                    <button onclick="cambiarVista('vista-lenguaje')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm no-print">
+                        <span>Abrir Módulo Lenguaje</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel Visual: Gráfico Radar Multidominio + Síntesis Interpretativa -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-6 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="radar" class="w-5 h-5 text-indigo-600"></i>
+                            <span>Perfil Radar Multidominio (%)</span>
+                        </h3>
+                        <span class="text-xs text-slate-400">Escala normalizada 0–100%</span>
+                    </div>
+                    <div class="relative flex-1 min-h-[300px] flex items-center justify-center">
+                        <canvas id="ini-radar-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-6 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between space-y-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-3">
+                            <i data-lucide="file-text" class="w-5 h-5 text-indigo-600"></i>
+                            <span>Síntesis Clínica Automatizada y Alertas</span>
+                        </h3>
+                        <div id="ini-clinical-summary-box" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 space-y-2.5 leading-relaxed">
+                            <p class="text-slate-500 italic">Complete al menos un módulo de evaluación o cargue una demo clínica para generar el análisis integrado de hallazgos neurológicos.</p>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Progreso Global -->
+                    <div class="pt-3 border-t border-slate-100">
+                        <div class="flex justify-between items-center text-xs font-semibold text-slate-600 mb-1.5">
+                            <span>Completitud de Batería Neurológica</span>
+                            <span id="ini-completion-text">0 / 3 Módulos completados</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="ini-completion-bar" class="h-full bg-indigo-600 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- VISTA 2: EVALUACIÓN COGNITIVA (MMSE, MoCA TMT-B/Memoria, FAB Go/No-Go)-->
+        <!-- ===================================================================== -->
+        <section id="vista-cognitiva" class="vista-seccion hidden space-y-6">
+            <!-- Cabecera del Módulo Cognitivo -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800">Módulo 1 • Cognición</span>
+                        <span id="cog-total-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 font-mono-code">Global: 0%</span>
+                    </div>
+                    <h2 class="text-2xl font-extrabold text-slate-900">Batería de Tamizaje Cognitivo (MMSE • MoCA • FAB)</h2>
+                    <p class="text-sm text-slate-500">Evaluación estructurada de orientación, funciones ejecutivas visoespaciales, memoria diferida y control inhibitorio.</p>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="cog_guardarYSalir()" class="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Guardar y Volver al Inicio</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-pestañas de la Batería Cognitiva -->
+            <div class="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                <button id="cog-tab-mmse" onclick="cog_switchSubtab('mmse')" class="cog-subtab-btn flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-bold bg-violet-600 text-white transition">
+                    1. MMSE Abrevia. (<span id="cog-mmse-score-lbl">0</span>/15)
+                </button>
+                <button id="cog-tab-moca" onclick="cog_switchSubtab('moca')" class="cog-subtab-btn flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    2. MoCA TMT-B & Mem (<span id="cog-moca-score-lbl">0</span>/10)
+                </button>
+                <button id="cog-tab-fab" onclick="cog_switchSubtab('fab')" class="cog-subtab-btn flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    3. FAB Go/No-Go (<span id="cog-fab-score-lbl">0</span>/5)
+                </button>
+            </div>
+
+            <!-- SUBPANEL COGNITIVO 1: MMSE -->
+            <div id="cog-panel-mmse" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Mini-Mental State Examination (Dominios Clave)</h3>
+                        <p class="text-xs text-slate-500">Marque cada ítem respondido correctamente por el paciente (1 punto por ítem).</p>
+                    </div>
+                    <button onclick="cog_autoDetectDateOrientation()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition self-start">
+                        Ver Fecha Actual de Referencia
+                    </button>
+                </div>
+
+                <div id="cog-date-ref-banner" class="hidden p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 font-medium"></div>
+
+                <!-- Grupo A: Orientación Temporal y Espacial (8 pts) -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">A. Orientación Temporal y Espacial (0–8 pts)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="cog-mmse-orientacion-grid">
+                        <!-- Generado dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <!-- Grupo B: Atención y Cálculo Seriación 100 - 7 (5 pts) -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">B. Atención y Cálculo — Resta Seriada 100 - 7 (0–5 pts)</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="cog-mmse-calculo-grid">
+                        <!-- Generado dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <!-- Grupo C: Praxia Constructiva y Comprensión Escrita (2 pts) -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">C. Ejecución y Praxia Constructiva (0–2 pts)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="cog-mmse-praxia-grid">
+                        <!-- Generado dinámicamente por JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL COGNITIVO 2: MoCA (TMT-B Interactivo + Memoria Diferida 5 Palabras) -->
+            <div id="cog-panel-moca" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Ejercicio 1: Trail Making Test B (Alternancia 1-A-2-B-3-C-4-D) -->
+                    <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold uppercase tracking-wider text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-md">Función Ejecutiva • TMT-B</span>
+                                <span id="cog-tmt-status" class="text-xs font-bold text-slate-600">Pendiente (0/5 pts)</span>
+                            </div>
+                            <h3 class="text-base font-bold text-slate-900">Alternancia Conceptual (1 → A → 2 → B → 3 → C → 4 → D)</h3>
+                            <p class="text-xs text-slate-500 mt-1 mb-4">Toque los nodos en orden alternante ascendente sin cometer errores. Evalúa flexibilidad cognitiva frontal.</p>
+
+                            <!-- Tablero Interactivo TMT-B -->
+                            <div id="cog-tmt-board" class="relative w-full h-64 bg-white rounded-xl border border-slate-300 shadow-inner overflow-hidden select-none">
+                                <svg id="cog-tmt-svg" class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+                                <div id="cog-tmt-nodes" class="absolute inset-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex items-center justify-between">
+                            <div class="text-xs text-slate-600">
+                                Siguiente esperado: <span id="cog-tmt-next-lbl" class="font-bold text-violet-700 font-mono-code text-sm">1</span>
+                                • Errores: <span id="cog-tmt-errors-lbl" class="font-bold text-rose-600">0</span>
+                            </div>
+                            <button onclick="cog_resetTMT()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition">
+                                Reiniciar Secuencia
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Ejercicio 2: Memoria Diferida (5 Palabras MoCA) -->
+                    <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-md">Memoria Episódica Diferida</span>
+                                <span id="cog-mem-score-badge" class="text-xs font-bold text-indigo-700">0 / 5 pts</span>
+                            </div>
+                            <h3 class="text-base font-bold text-slate-900">Recuerdo Libre de 5 Palabras (Sin Pistas)</h3>
+                            <p class="text-xs text-slate-500 mt-1">Lea las 5 palabras al paciente (2 ensayos de registro). Tras 3 minutos o realizar el TMT-B, marque las evocadas espontáneamente.</p>
+
+                            <div class="mt-3 flex items-center gap-2">
+                                <button id="cog-btn-toggle-words" onclick="cog_toggleMemoryWords()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                                    Ocultar Palabras Estímulo (Fase Evocación)
+                                </button>
+                            </div>
+
+                            <div id="cog-memory-cards" class="mt-4 grid grid-cols-1 gap-2.5">
+                                <!-- Renderizado por JS -->
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                            <strong>Nota clínica MoCA:</strong> Solo puntúa el recuerdo libre sin clave semántica ni elección múltiple (1 punto por palabra).
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL COGNITIVO 3: FAB Go / No-Go (Control Inhibitorio) -->
+            <div id="cog-panel-fab" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-md">Frontal Assessment Battery (FAB)</span>
+                        <h3 class="text-lg font-bold text-slate-900 mt-1">Tarea Computarizada Go / No-Go (Control Inhibitorio Prefrontal)</h3>
+                        <p class="text-xs text-slate-500">Instrucción al paciente: <strong>Presione el botón verde cuando vea el CÍRCULO VERDE (GO)</strong>. <strong>NO presione nada cuando vea el CUADRADO ROJO (NO-GO)</strong>.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="cog-btn-start-gonogo" onclick="cog_startGoNoGo()" class="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold shadow-sm transition flex items-center gap-2">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Iniciar Prueba (10 Estímulos)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    <!-- Arena Visual de Estímulos -->
+                    <div class="lg:col-span-7 flex flex-col items-center justify-center p-8 rounded-2xl bg-slate-900 text-white min-h-[280px] relative">
+                        <div id="cog-gonogo-progress" class="absolute top-4 right-4 text-xs font-mono-code text-slate-400">Ensayo: 0 / 10</div>
+                        <div id="cog-gonogo-stimulus" class="w-32 h-32 flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 text-slate-400 text-sm font-semibold text-center px-3">
+                            Listo para iniciar
+                        </div>
+                        <button id="cog-gonogo-tap-btn" onclick="cog_registerGoNoGoTap()" disabled
+                            class="mt-6 px-8 py-4 rounded-2xl bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-base tracking-wide transition shadow-lg">
+                            TOCAR AQUÍ EN ESTÍMULO VERDE (GO)
+                        </button>
+                    </div>
+
+                    <!-- Métricas de Desempeño Ejecutivo -->
+                    <div class="lg:col-span-5 space-y-3">
+                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Resultados del Control Inhibitorio</h4>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-600">Aciertos GO (Activación):</span>
+                                <span id="cog-gng-hits" class="font-bold text-emerald-600 font-mono-code">0 / 6</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-600">Inhibiciones Correctas NO-GO:</span>
+                                <span id="cog-gng-inhib" class="font-bold text-indigo-600 font-mono-code">0 / 4</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-600">Errores de Impulsividad (Comisión):</span>
+                                <span id="cog-gng-impulsivity" class="font-bold text-rose-600 font-mono-code">0</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-600">Tiempo de Reacción Medio:</span>
+                                <span id="cog-gng-rt" class="font-bold text-slate-800 font-mono-code">-- ms</span>
+                            </div>
+                            <div class="pt-2 border-t border-slate-200 flex justify-between items-center">
+                                <span class="text-sm font-bold text-slate-800">Puntaje FAB Go/No-Go:</span>
+                                <span id="cog-gng-score" class="text-lg font-extrabold text-violet-700 font-mono-code">0 / 5 pts</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- VISTA 3: EVALUACIÓN MOTORA EESS (Kapandji 21 Landmarks, FMA-UE, ARAT) -->
+        <!-- ===================================================================== -->
+        <section id="vista-motora" class="vista-seccion hidden space-y-6">
+            <!-- Cabecera del Módulo Motor -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">Módulo 2 • Motricidad EESS</span>
+                        <span id="mot-total-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 font-mono-code">Global: 0%</span>
+                    </div>
+                    <h2 class="text-2xl font-extrabold text-slate-900">Evaluación Motora de Extremidad Superior (EESS)</h2>
+                    <p class="text-sm text-slate-500">Cinemática de oposición del pulgar (Kapandji con IA 21 landmarks), Fugl-Meyer EESS y destreza funcional ARAT.</p>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="mot_guardarYSalir()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Guardar y Volver al Inicio</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-pestañas del Módulo Motor -->
+            <div class="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                <button id="mot-tab-kapandji" onclick="mot_switchSubtab('kapandji')" class="mot-subtab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-xl text-sm font-bold bg-emerald-600 text-white transition">
+                    1. Kapandji IA (<span id="mot-kap-score-lbl">0</span>/10)
+                </button>
+                <button id="mot-tab-fma" onclick="mot_switchSubtab('fma')" class="mot-subtab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    2. Fugl-Meyer EESS (<span id="mot-fma-score-lbl">0</span>/66)
+                </button>
+                <button id="mot-tab-arat" onclick="mot_switchSubtab('arat')" class="mot-subtab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    3. Escala ARAT (<span id="mot-arat-score-lbl">0</span>/57)
+                </button>
+            </div>
+
+            <!-- SUBPANEL MOTOR 1: KAPANDJI CON MEDIAPIPE HANDLANDMARKER (21 LANDMARKS) -->
+            <div id="mot-panel-kapandji" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Visor de Cámara y Superposición de 21 Landmarks -->
+                    <div class="lg:col-span-7 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span id="mot-cam-status" class="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+                                <span class="w-2 h-2 rounded-full bg-slate-400"></span> Cámara en espera
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button id="mot-btn-start-cam" onclick="mot_iniciarCamaraKapandji()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="camera" class="w-4 h-4"></i>
+                                    <span>Activar Cámara IA</span>
+                                </button>
+                                <button id="mot-btn-stop-cam" onclick="mot_detenerCamara()" disabled class="px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 disabled:opacity-40 text-xs font-bold transition flex items-center gap-1.5">
+                                    <i data-lucide="camera-off" class="w-4 h-4"></i>
+                                    <span>Detener</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mot-video-container shadow-md border border-slate-800">
+                            <video id="mot-webcam-video" autoplay playsinline muted class="mot-mirror"></video>
+                            <canvas id="mot-landmark-canvas" class="mot-mirror"></canvas>
+                            <div id="mot-cam-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+                                <i data-lucide="scan-hand" class="w-12 h-12 mb-3 text-emerald-500/80"></i>
+                                <p class="text-sm font-semibold text-slate-200">Análisis Cinemático de Oposición del Pulgar (21 Landmarks)</p>
+                                <p class="text-xs text-slate-400 mt-1 max-w-md">Active la cámara para detectar automáticamente el contacto del pulgar (landmark 4) con los puntos anatómicos de referencia de Kapandji (estadios 1 a 10), o registre manualmente a la derecha.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Escala Interactiva de Estadios Kapandji (0 a 10) -->
+                    <div class="lg:col-span-5 flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-base font-bold text-slate-900">Estadio Máximo de Kapandji</h3>
+                                <span id="mot-kap-current-display" class="text-2xl font-extrabold text-emerald-600 font-mono-code">0 / 10</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mb-3">La IA actualiza automáticamente el estadio máximo alcanzado, o puede seleccionar/ajustar clínicamente cada nivel:</p>
+
+                            <div id="mot-kapandji-levels" class="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
+                                <!-- Niveles 1 a 10 generados por JS -->
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                            <span class="text-xs text-slate-500">Mano detectada: <strong id="mot-handedness-lbl" class="text-slate-800">--</strong></span>
+                            <button onclick="mot_resetKapandji()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                                Reiniciar Estadio (0)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL MOTOR 2: ESCALA FUGL-MEYER EXTREMIDAD SUPERIOR (FMA-UE 66 pts) -->
+            <div id="mot-panel-fma" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Escala de Evaluación Motora Fugl-Meyer — Extremidad Superior (FMA-UE)</h3>
+                        <p class="text-xs text-slate-500">Puntúe cada subdominio según capacidad motora observada (0 = No realiza, 1 = Parcial, 2 = Completo).</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-slate-500 block">Puntaje Total FMA-UE</span>
+                        <span id="mot-fma-total-display" class="text-2xl font-extrabold text-emerald-600 font-mono-code">0 / 66</span>
+                    </div>
+                </div>
+
+                <div id="mot-fma-sections" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Renderizado dinámico de los subdominios FMA-UE -->
+                </div>
+            </div>
+
+            <!-- SUBPANEL MOTOR 3: ACTION RESEARCH ARM TEST (ARAT 57 pts) -->
+            <div id="mot-panel-arat" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Action Research Arm Test (ARAT) — Funcionalidad Táctil y Prensión</h3>
+                        <p class="text-xs text-slate-500">Escala ordinal de 0 a 3 por ítem funcional (0 = No logra, 1 = Parcial, 2 = Completa con dificultad/lentitud, 3 = Normal).</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-slate-500 block">Puntaje Total ARAT</span>
+                        <span id="mot-arat-total-display" class="text-2xl font-extrabold text-emerald-600 font-mono-code">0 / 57</span>
+                    </div>
+                </div>
+
+                <div id="mot-arat-sections" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Renderizado dinámico de las 4 subescalas ARAT -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- VISTA 4: EVALUACIÓN DE LENGUAJE — PRUEBA RÁPIDA DE AFASIA (ART) (len_)-->
+        <!-- ===================================================================== -->
+        <section id="vista-lenguaje" class="vista-seccion hidden space-y-6">
+            <!-- Cabecera del Módulo de Lenguaje -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">Módulo 3 • Lenguaje & Comunicación</span>
+                        <span id="len-total-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 font-mono-code">Global ART: 0%</span>
+                    </div>
+                    <h2 class="text-2xl font-extrabold text-slate-900">Prueba Rápida de Afasia (ART — Aphasia Rapid Test)</h2>
+                    <p class="text-sm text-slate-500">Tamizaje clínico estandarizado de comprensión auditiva, denominación visual asistida por voz, repetición verbal y fluencia semántica.</p>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="len_guardarYSalir()" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Guardar y Volver al Inicio</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-pestañas de la Prueba Rápida de Afasia (ART) -->
+            <div class="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                <button id="len-tab-comprension" onclick="len_switchSubtab('comprension')" class="len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 text-white transition">
+                    1. Comprensión (<span id="len-comp-score-lbl">0</span>/6)
+                </button>
+                <button id="len-tab-denominacion" onclick="len_switchSubtab('denominacion')" class="len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    2. Denominación (<span id="len-denom-score-lbl">0</span>/6)
+                </button>
+                <button id="len-tab-repeticion" onclick="len_switchSubtab('repeticion')" class="len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    3. Repetición (<span id="len-rep-score-lbl">0</span>/6)
+                </button>
+                <button id="len-tab-fluencia" onclick="len_switchSubtab('fluencia')" class="len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                    4. Fluencia 60s (<span id="len-flu-score-lbl">0</span>/6)
+                </button>
+            </div>
+
+            <!-- SUBPANEL LENGUAJE 1: COMPRENSIÓN DE ÓRDENES SIMPLES Y COMPLEJAS (0–6 pts) -->
+            <div id="len-panel-comprension" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">1. Comprensión Auditiva de Órdenes (Simples y Complejas)</h3>
+                        <p class="text-xs text-slate-500">Puede reproducir la orden mediante síntesis de voz clínica (TTS) o leerla en voz alta sin gestos de apoyo. Evalúe la ejecución motora del paciente.</p>
+                    </div>
+                    <span class="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">Máximo: 6 puntos</span>
+                </div>
+
+                <div id="len-comprension-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Renderizado dinámico de 6 órdenes (3 simples + 3 complejas) -->
+                </div>
+            </div>
+
+            <!-- SUBPANEL LENGUAJE 2: DENOMINACIÓN VISUAL CON RECONOCIMIENTO DE VOZ (0–6 pts) -->
+            <div id="len-panel-denominacion" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">2. Denominación por Confrontación Visual (Voz + Validación Clínica)</h3>
+                        <p class="text-xs text-slate-500">Muestre cada estímulo visual. Active el micrófono para transcripción automática en español o califique clínicamente (2 = Inmediata, 1 = Parafasia/Latencia, 0 = Anomia).</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="len-btn-mic-denom" onclick="len_toggleSpeechDenom()" class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                            <i data-lucide="mic" class="w-4 h-4"></i>
+                            <span id="len-mic-denom-lbl">Activar Micrófono Voz</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Barra de estado de reconocimiento de voz -->
+                <div id="len-denom-transcript-bar" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-xs">
+                        <span id="len-denom-mic-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span class="font-semibold text-slate-700">Transcripción en vivo:</span>
+                        <span id="len-denom-transcript-text" class="italic text-slate-500">Presione "Activar Micrófono Voz" para detectar respuestas habladas automáticamente...</span>
+                    </div>
+                    <span id="len-sr-support-tag" class="text-[11px] font-mono-code text-slate-400">Web Speech API</span>
+                </div>
+
+                <div id="len-denominacion-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <!-- 3 Láminas SVG vectoriales nítidas (Reloj, Llave, Tijeras) -->
+                </div>
+            </div>
+
+            <!-- SUBPANEL LENGUAJE 3: REPETICIÓN VERBAL DE PALABRAS Y FRASES (0–6 pts) -->
+            <div id="len-panel-repeticion" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">3. Repetición Verbal (Palabras Simples, Polisílabos y Frase Compleja)</h3>
+                        <p class="text-xs text-slate-500">Reproduzca o pronuncie el estímulo una sola vez. Evalúe precisión fonológica y ausencia de parafasias literales o disartria severa.</p>
+                    </div>
+                    <span class="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">Máximo: 6 puntos</span>
+                </div>
+
+                <div id="len-repeticion-list" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- 3 ítems de repetición progresiva (0-2 pts c/u = 6 pts) -->
+                </div>
+            </div>
+
+            <!-- SUBPANEL LENGUAJE 4: FLUENCIA SEMÁNTICA DE ANIMALES EN 60 SEGUNDOS (0–6 pts) -->
+            <div id="len-panel-fluencia" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">4. Fluencia Verbal Semántica — Categoría: ANIMALES (60 segundos)</h3>
+                        <p class="text-xs text-slate-500">Instrucción: <em>"Diga todos los nombres de animales que recuerde lo más rápido posible durante un minuto"</em>. Puede usar voz o registro rápido.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="len-btn-flu-start" onclick="len_startFluenciaTimer()" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center gap-2">
+                            <i data-lucide="timer" class="w-4 h-4"></i>
+                            <span>Iniciar Cronómetro 60s</span>
+                        </button>
+                        <button onclick="len_resetFluencia()" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold transition">
+                            Reiniciar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Cronómetro y Entrada Rápida -->
+                    <div class="lg:col-span-5 space-y-4">
+                        <div class="p-6 rounded-2xl bg-slate-900 text-white flex flex-col items-center justify-center text-center">
+                            <span class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Tiempo Restante</span>
+                            <div id="len-flu-timer-display" class="text-5xl font-extrabold font-mono-code my-2 text-rose-400">01:00</div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                                <div id="len-flu-progress-bar" class="h-full bg-rose-500 transition-all duration-300" style="width: 100%"></div>
+                            </div>
+                            <div class="mt-4 flex items-center gap-2">
+                                <button id="len-btn-flu-mic" onclick="len_toggleSpeechFluencia()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                                    <i data-lucide="mic" class="w-3.5 h-3.5 text-rose-400"></i>
+                                    <span id="len-flu-mic-lbl">Dictado por Voz: Off</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Ingreso manual rápido o conteo directo -->
+                        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                            <label for="len-flu-input" class="block text-xs font-bold uppercase text-slate-600">Registrar Animal Evocado (Enter o Añadir)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="len-flu-input" onkeydown="if(event.key==='Enter') len_addAnimalManual()" placeholder="Ej: perro, gato, león..."
+                                    class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-rose-500 outline-none">
+                                <button onclick="len_addAnimalManual()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition">
+                                    Añadir
+                                </button>
+                            </div>
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+                                <span class="text-xs text-slate-500">Conteo rápido sin escribir:</span>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="len_adjustDirectAnimalCount(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-300 font-bold text-slate-700 hover:bg-slate-100">-1</button>
+                                    <button onclick="len_adjustDirectAnimalCount(1)" class="px-3 h-8 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700">+1 Animal</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Animales Registrados y Baremo Clínico ART -->
+                    <div class="lg:col-span-7 flex flex-col justify-between p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-sm font-bold text-slate-900">Animales Válidos Registrados (<span id="len-flu-count-lbl" class="text-rose-600">0</span>)</h4>
+                                <span id="len-flu-art-pts-badge" class="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 font-mono-code">Puntaje ART: 0 / 6 pts</span>
+                            </div>
+                            <div id="len-flu-tags-container" class="min-h-[140px] max-h-[200px] overflow-y-auto p-3 rounded-xl bg-white border border-slate-200 flex flex-wrap gap-2 content-start">
+                                <span class="text-xs text-slate-400 italic">Aún no se han registrado animales en esta sesión.</span>
+                            </div>
+                        </div>
+
+                        <!-- Baremo de Conversión ART -->
+                        <div class="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 space-y-1">
+                            <p class="font-bold text-slate-800">Baremo Clínico ART (Fluencia Semántica 60s):</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono-code text-[11px]">
+                                <div class="p-1.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">≥ 15 animales = 6 pts</div>
+                                <div class="p-1.5 rounded bg-blue-50 text-blue-800 border border-blue-200">10–14 animales = 4 pts</div>
+                                <div class="p-1.5 rounded bg-amber-50 text-amber-800 border border-amber-200">5–9 animales = 2 pts</div>
+                                <div class="p-1.5 rounded bg-rose-50 text-rose-800 border border-rose-200">0–4 animales = 0 pts</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- PIE DE PÁGINA CLÍNICO -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-8 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+            <span><strong>NeuroEval Pro SPA</strong> — Herramienta de Apoyo al Tamizaje Neurológico (MMSE, MoCA, FAB, Kapandji, FMA-UE, ARAT, ART).</span>
+            <span>Almacenamiento local seguro en navegador (<code class="font-mono-code text-slate-700">localStorage</code>).</span>
+        </div>
+    </footer>
+
+    <!-- ========================================================================= -->
+    <!-- SCRIPT MAESTRO UNIFICADO (SPA + INICIO + COGNITIVA + MOTORA + LENGUAJE)   -->
+    <!-- ========================================================================= -->
+    <script type="module">
+        // Importación segura de MediaPipe Tasks Vision para análisis de 21 landmarks de mano
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+        // =========================================================================
+        // 0. GESTOR CENTRAL DE NAVEGACIÓN SPA Y CICLO DE VIDA DE HARDWARE
+        // =========================================================================
+        window.spa_currentView = 'vista-inicio';
+
+        /**
+         * Libera de forma estricta e inmediata todos los recursos de hardware activos:
+         * - Cámara MediaStream (tracks de video/audio)
+         * - Bucles requestAnimationFrame
+         * - Temporizadores activos (Go/No-Go, Fluencia 60s)
+         * - Síntesis de voz (window.speechSynthesis)
+         * - Reconocimiento de voz (SpeechRecognition)
+         */
+        window.spa_detenerTodoHardware = function() {
+            // 1. Detener cámara y bucles de animación del módulo motor
+            if (typeof window.mot_detenerCamara === 'function') {
+                window.mot_detenerCamara();
+            }
+            // 2. Detener temporizador Go/No-Go del módulo cognitivo
+            if (window.cog_gngTimer) {
+                clearTimeout(window.cog_gngTimer);
+                window.cog_gngTimer = null;
+            }
+            window.cog_gngRunning = false;
+            // 3. Detener síntesis de voz (TTS)
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            // 4. Detener reconocimiento de voz (SpeechRecognition)
+            if (typeof window.len_detenerReconocimientoVoz === 'function') {
+                window.len_detenerReconocimientoVoz();
+            }
+            // 5. Detener cronómetro de fluencia verbal si estuviera corriendo
+            if (window.len_fluTimerInterval) {
+                clearInterval(window.len_fluTimerInterval);
+                window.len_fluTimerInterval = null;
+            }
+            window.len_fluRunning = false;
+        };
+
+        /**
+         * Cambia entre las 4 secciones principales de la SPA asegurando limpieza de hardware
+         * y actualización automática de datos consolidados al volver a 'vista-inicio'.
+         */
+        window.cambiarVista = function(idVista) {
+            // Liberar cualquier hardware activo antes de cambiar de vista
+            window.spa_detenerTodoHardware();
+
+            const secciones = ['vista-inicio', 'vista-cognitiva', 'vista-motora', 'vista-lenguaje'];
+            secciones.forEach(secId => {
+                const el = document.getElementById(secId);
+                const btn = document.getElementById('nav-btn-' + secId);
+                if (el) {
+                    if (secId === idVista) {
+                        el.classList.remove('hidden');
+                    } else {
+                        el.classList.add('hidden');
+                    }
+                }
+                if (btn) {
+                    if (secId === idVista) {
+                        btn.className = 'nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-indigo-600 text-white shadow-sm';
+                    } else {
+                        btn.className = 'nav-tab-btn px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all bg-slate-100 text-slate-700 hover:bg-slate-200';
+                    }
+                }
+            });
+
+            window.spa_currentView = idVista;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // Si volvemos al inicio, recargar automáticamente todos los resultados desde localStorage
+            if (idVista === 'vista-inicio') {
+                window.ini_loadAllAssessmentsAndRender();
+            }
+        };
+
+        /**
+         * Utilidad global de notificaciones no intrusivas (Toast)
+         */
+        window.spa_showToast = function(mensaje, tipo = 'info') {
+            const container = document.getElementById('spa-toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const colores = {
+                success: 'bg-emerald-900 text-white border-emerald-700',
+                error: 'bg-rose-900 text-white border-rose-700',
+                warning: 'bg-amber-900 text-white border-amber-700',
+                info: 'bg-slate-900 text-white border-slate-700'
+            };
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium flex items-center gap-2.5 transition-all duration-300 ${colores[tipo] || colores.info}`;
+            toast.innerHTML = `<span>${mensaje}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3400);
+        };
+
+        /**
+         * Modal de confirmación seguro (reemplaza window.confirm)
+         */
+        window.spa_confirmAction = function(titulo, mensaje, onConfirm) {
+            const modal = document.getElementById('spa-confirm-modal');
+            document.getElementById('spa-confirm-title').textContent = titulo;
+            document.getElementById('spa-confirm-msg').textContent = mensaje;
+            modal.classList.remove('hidden');
+
+            const btnCancel = document.getElementById('spa-confirm-cancel');
+            const btnOk = document.getElementById('spa-confirm-ok');
+
+            const cerrar = () => modal.classList.add('hidden');
+            btnCancel.onclick = cerrar;
+            btnOk.onclick = () => {
+                cerrar();
+                if (typeof onConfirm === 'function') onConfirm();
+            };
+        };
+
+        // =========================================================================
+        // 1. MÓDULO DE EVALUACIÓN INICIAL & PERFIL MULTIDOMINIO (PREFIJO: ini_)
+        // =========================================================================
+        let ini_radarChartInstance = null;
+
+        window.ini_savePatientInfo = function() {
+            const info = {
+                name: document.getElementById('ini-patient-name').value.trim(),
+                age: document.getElementById('ini-patient-age').value.trim(),
+                laterality: document.getElementById('ini-patient-laterality').value,
+                dx: document.getElementById('ini-patient-dx').value.trim(),
+                updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem('neuro_patient_info', JSON.stringify(info));
+        };
+
+        window.ini_loadPatientInfo = function() {
+            try {
+                const raw = localStorage.getItem('neuro_patient_info');
+                if (!raw) return;
+                const info = JSON.parse(raw);
+                if (info.name) document.getElementById('ini-patient-name').value = info.name;
+                if (info.age) document.getElementById('ini-patient-age').value = info.age;
+                if (info.laterality) document.getElementById('ini-patient-laterality').value = info.laterality;
+                if (info.dx) document.getElementById('ini-patient-dx').value = info.dx;
+            } catch (e) {
+                console.error('Error leyendo datos de paciente:', e);
+            }
+        };
+
+        window.ini_loadAllAssessmentsAndRender = function() {
+            window.ini_loadPatientInfo();
+
+            let cogData = null;
+            let motData = null;
+            let lenData = null;
+
+            try { cogData = JSON.parse(localStorage.getItem('neuro_eval_cognitiva')); } catch (e) {}
+            try { motData = JSON.parse(localStorage.getItem('neuro_eval_motora')); } catch (e) {}
+            try { lenData = JSON.parse(localStorage.getItem('neuro_eval_lenguaje')); } catch (e) {}
+
+            let completedModules = 0;
+
+            // 1. Actualizar Tarjeta Cognitiva
+            const cogPct = cogData ? Number(cogData.globalPct || 0) : 0;
+            if (cogData) {
+                completedModules++;
+                document.getElementById('ini-status-cog').textContent = 'Completado';
+                document.getElementById('ini-status-cog').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+                document.getElementById('ini-score-cog').textContent = `${cogPct}%`;
+                document.getElementById('ini-detail-cog').textContent = `MMSE: ${cogData.mmseScore}/15 • MoCA: ${cogData.mocaScore}/10 • FAB: ${cogData.fabScore}/5`;
+            } else {
+                document.getElementById('ini-status-cog').textContent = 'Pendiente';
+                document.getElementById('ini-status-cog').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600';
+                document.getElementById('ini-score-cog').textContent = '-- %';
+                document.getElementById('ini-detail-cog').textContent = 'Sin registros guardados aún.';
+            }
+
+            // 2. Actualizar Tarjeta Motora
+            const motPct = motData ? Number(motData.globalPct || 0) : 0;
+            if (motData) {
+                completedModules++;
+                document.getElementById('ini-status-mot').textContent = 'Completado';
+                document.getElementById('ini-status-mot').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+                document.getElementById('ini-score-mot').textContent = `${motPct}%`;
+                document.getElementById('ini-detail-mot').textContent = `Kapandji: ${motData.kapandjiScore}/10 • FMA-UE: ${motData.fmaScore}/66 • ARAT: ${motData.aratScore}/57`;
+            } else {
+                document.getElementById('ini-status-mot').textContent = 'Pendiente';
+                document.getElementById('ini-status-mot').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600';
+                document.getElementById('ini-score-mot').textContent = '-- %';
+                document.getElementById('ini-detail-mot').textContent = 'Sin registros guardados aún.';
+            }
+
+            // 3. Actualizar Tarjeta Lenguaje (ART)
+            const lenPct = lenData ? Number(lenData.globalPct || 0) : 0;
+            if (lenData) {
+                completedModules++;
+                document.getElementById('ini-status-len').textContent = 'Completado';
+                document.getElementById('ini-status-len').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+                document.getElementById('ini-score-len').textContent = `${lenPct}%`;
+                document.getElementById('ini-detail-len').textContent = `ART Total: ${lenData.totalScore}/24 • Fluencia: ${lenData.animalCount} animales • ${lenData.severityLabel || ''}`;
+            } else {
+                document.getElementById('ini-status-len').textContent = 'Pendiente';
+                document.getElementById('ini-status-len').className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600';
+                document.getElementById('ini-score-len').textContent = '-- %';
+                document.getElementById('ini-detail-len').textContent = 'Sin registros guardados aún.';
+            }
+
+            // Barra de completitud
+            const compPct = Math.round((completedModules / 3) * 100);
+            document.getElementById('ini-completion-text').textContent = `${completedModules} / 3 Módulos completados`;
+            document.getElementById('ini-completion-bar').style.width = `${compPct}%`;
+
+            // Renderizar Radar Chart de 6 ejes clínicos detallados
+            const radarValues = [
+                cogData ? Math.round(((cogData.mmseScore || 0) / 15) * 100) : 0,
+                cogData ? Math.round((((cogData.mocaScore || 0) + (cogData.fabScore || 0)) / 15) * 100) : 0,
+                motData ? Math.round(((motData.kapandjiScore || 0) / 10) * 100) : 0,
+                motData ? Math.round((((motData.fmaScore || 0) + (motData.aratScore || 0)) / 123) * 100) : 0,
+                lenData ? Math.round((((lenData.comprensionScore || 0) + (lenData.repeticionScore || 0)) / 12) * 100) : 0,
+                lenData ? Math.round((((lenData.denominacionScore || 0) + (lenData.fluenciaScore || 0)) / 12) * 100) : 0
+            ];
+
+            window.ini_renderRadarChart(radarValues);
+            window.ini_renderClinicalSynthesis(cogData, motData, lenData);
+        };
+
+        window.ini_renderRadarChart = function(dataPoints) {
+            const ctx = document.getElementById('ini-radar-chart');
+            if (!ctx) return;
+            if (ini_radarChartInstance) {
+                ini_radarChartInstance.destroy();
+            }
+            ini_radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: [
+                        'Orientación & Cálculo (MMSE)',
+                        'Ejecutivo & Memoria (MoCA/FAB)',
+                        'Oposición Pulgar (Kapandji)',
+                        'Fuerza & Función EESS (FMA/ARAT)',
+                        'Comprensión & Repetición (ART)',
+                        'Denominación & Fluencia (ART)'
+                    ],
+                    datasets: [{
+                        label: 'Rendimiento Funcional (%)',
+                        data: dataPoints,
+                        fill: true,
+                        backgroundColor: 'rgba(79, 70, 229, 0.18)',
+                        borderColor: 'rgb(79, 70, 229)',
+                        pointBackgroundColor: 'rgb(79, 70, 229)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(79, 70, 229)',
+                        borderWidth: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            ticks: { stepSize: 25, backdropColor: 'transparent', font: { size: 10 } },
+                            pointLabels: { font: { size: 11, weight: '600' }, color: '#334155' },
+                            grid: { color: '#e2e8f0' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        };
+
+        window.ini_renderClinicalSynthesis = function(cogData, motData, lenData) {
+            const box = document.getElementById('ini-clinical-summary-box');
+            if (!box) return;
+            if (!cogData && !motData && !lenData) {
+                box.innerHTML = `<p class="text-slate-500 italic">Complete al menos un módulo de evaluación o cargue una demo clínica para generar el análisis integrado de hallazgos neurológicos.</p>`;
+                return;
+            }
+
+            let html = '';
+            if (cogData) {
+                const nivelCog = cogData.globalPct >= 80 ? 'Rendimiento cognitivo preservado' :
+                                 cogData.globalPct >= 55 ? 'Deterioro cognitivo leve a moderado (vigilar función ejecutiva/memoria)' :
+                                 'Compromiso cognitivo significativo';
+                html += `<div class="p-2.5 rounded-lg bg-violet-50/70 border border-violet-100">
+                    <strong class="text-violet-900">• Dominio Cognitivo (${cogData.globalPct}%):</strong> ${nivelCog}.
+                    <span class="text-xs text-slate-600 block mt-0.5">MMSE ${cogData.mmseScore}/15, MoCA ${cogData.mocaScore}/10, FAB Go/No-Go ${cogData.fabScore}/5.</span>
+                </div>`;
+            }
+            if (motData) {
+                const nivelMot = motData.globalPct >= 80 ? 'Destreza motora y prensión funcional conservadas' :
+                                 motData.globalPct >= 50 ? 'Paresia moderada de EESS con limitación en pinza fina' :
+                                 'Déficit motor severo de extremidad superior';
+                html += `<div class="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                    <strong class="text-emerald-900">• Dominio Motor EESS (${motData.globalPct}%):</strong> ${nivelMot}.
+                    <span class="text-xs text-slate-600 block mt-0.5">Kapandji estadio ${motData.kapandjiScore}/10, FMA-UE ${motData.fmaScore}/66, ARAT ${motData.aratScore}/57.</span>
+                </div>`;
+            }
+            if (lenData) {
+                html += `<div class="p-2.5 rounded-lg bg-rose-50/70 border border-rose-100">
+                    <strong class="text-rose-900">• Dominio Lenguaje ART (${lenData.globalPct}% — ${lenData.severityLabel}):</strong>
+                    Comprensión ${lenData.comprensionScore}/6, Denominación ${lenData.denominacionScore}/6, Repetición ${lenData.repeticionScore}/6, Fluencia ${lenData.fluenciaScore}/6 (${lenData.animalCount} animales).
+                </div>`;
+            }
+            box.innerHTML = html;
+        };
+
+        window.ini_cargarDatosDemo = function() {
+            localStorage.setItem('neuro_patient_info', JSON.stringify({
+                name: 'Carlos Alberto Mendoza (HC-8841)',
+                age: '64',
+                laterality: 'Diestro / Hemiparesia Derecha',
+                dx: 'Secuela ACV Isquémico ACM Izquierda (Subagudo)'
+            }));
+
+            localStorage.setItem('neuro_eval_cognitiva', JSON.stringify({
+                mmseScore: 13,
+                mocaScore: 7,
+                fabScore: 4,
+                totalScore: 24,
+                maxScore: 30,
+                globalPct: 80,
+                timestamp: new Date().toISOString()
+            }));
+
+            localStorage.setItem('neuro_eval_motora', JSON.stringify({
+                kapandjiScore: 6,
+                fmaScore: 42,
+                aratScore: 34,
+                globalPct: 62,
+                timestamp: new Date().toISOString()
+            }));
+
+            localStorage.setItem('neuro_eval_lenguaje', JSON.stringify({
+                comprensionScore: 5,
+                denominacionScore: 4,
+                repeticionScore: 4,
+                fluenciaScore: 4,
+                animalCount: 11,
+                animalsList: ['perro', 'gato', 'caballo', 'vaca', 'león', 'tigre', 'elefante', 'pájaro', 'pez', 'conejo', 'tortuga'],
+                totalScore: 17,
+                maxScore: 24,
+                globalPct: 71,
+                severityLabel: 'Afasia Leve / Anomia Residual',
+                timestamp: new Date().toISOString()
+            }));
+
+            // Sincronizar estados internos de los módulos
+            cog_loadFromStorage();
+            mot_loadFromStorage();
+            len_loadFromStorage();
+            ini_loadAllAssessmentsAndRender();
+            window.spa_showToast('Caso clínico de demostración cargado en los 3 módulos.', 'success');
+        };
+
+        window.ini_exportarCSV = function() {
+            const p = JSON.parse(localStorage.getItem('neuro_patient_info') || '{}');
+            const c = JSON.parse(localStorage.getItem('neuro_eval_cognitiva') || '{}');
+            const m = JSON.parse(localStorage.getItem('neuro_eval_motora') || '{}');
+            const l = JSON.parse(localStorage.getItem('neuro_eval_lenguaje') || '{}');
+
+            const headers = [
+                'Fecha_Exportacion', 'Paciente', 'Edad', 'Lateralidad', 'Diagnostico',
+                'Cognitiva_Global_Pct', 'MMSE_15', 'MoCA_10', 'FAB_GoNoGo_5',
+                'Motora_Global_Pct', 'Kapandji_10', 'FMA_UE_66', 'ARAT_57',
+                'Lenguaje_ART_Pct', 'ART_Total_24', 'ART_Comprension_6', 'ART_Denominacion_6', 'ART_Repeticion_6', 'ART_Fluencia_6', 'Fluencia_Animales_60s', 'Clasificacion_Lenguaje'
+            ];
+
+            const row = [
+                new Date().toLocaleDateString('es-CL'),
+                `"${(p.name || 'Sin especificar').replace(/"/g, '""')}"`,
+                p.age || '',
+                `"${p.laterality || ''}"`,
+                `"${(p.dx || '').replace(/"/g, '""')}"`,
+                c.globalPct ?? '', c.mmseScore ?? '', c.mocaScore ?? '', c.fabScore ?? '',
+                m.globalPct ?? '', m.kapandjiScore ?? '', m.fmaScore ?? '', m.aratScore ?? '',
+                l.globalPct ?? '', l.totalScore ?? '', l.comprensionScore ?? '', l.denominacionScore ?? '', l.repeticionScore ?? '', l.fluenciaScore ?? '', l.animalCount ?? '', `"${l.severityLabel || ''}"`
+            ];
+
+            const csvContent = '\uFEFF' + headers.join(',') + '\n' + row.join(',');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `NeuroEvalPro_${(p.name || 'Paciente').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            window.spa_showToast('Reporte clínico CSV exportado correctamente.', 'success');
+        };
+
+        window.ini_solicitarReinicioTotal = function() {
+            window.spa_confirmAction(
+                'Reiniciar Toda la Suite Clínica',
+                'Esta acción eliminará los datos del paciente y los puntajes guardados de Cognición, Motricidad y Lenguaje. ¿Desea continuar?',
+                () => {
+                    localStorage.removeItem('neuro_patient_info');
+                    localStorage.removeItem('neuro_eval_cognitiva');
+                    localStorage.removeItem('neuro_eval_motora');
+                    localStorage.removeItem('neuro_eval_lenguaje');
+
+                    document.getElementById('ini-patient-name').value = '';
+                    document.getElementById('ini-patient-age').value = '';
+                    document.getElementById('ini-patient-dx').value = '';
+
+                    cog_resetAllState();
+                    mot_resetAllState();
+                    len_resetAllState();
+                    ini_loadAllAssessmentsAndRender();
+                    window.spa_showToast('Todos los registros han sido restablecidos.', 'info');
+                }
+            );
+        };
+
+        // =========================================================================
+        // 2. MÓDULO DE EVALUACIÓN COGNITIVA (PREFIJO: cog_)
+        // =========================================================================
+        const cog_mmseOrientItems = [
+            { id: 'o1', label: 'Año actual' },
+            { id: 'o2', label: 'Estación del año' },
+            { id: 'o3', label: 'Fecha (día del mes)' },
+            { id: 'o4', label: 'Día de la semana' },
+            { id: 'o5', label: 'Mes actual' },
+            { id: 'o6', label: 'País / Región' },
+            { id: 'o7', label: 'Ciudad / Comuna' },
+            { id: 'o8', label: 'Centro clínico / Piso' }
+        ];
+        const cog_mmseCalcItems = [
+            { id: 'c1', label: '93 (100 - 7)' },
+            { id: 'c2', label: '86 (93 - 7)' },
+            { id: 'c3', label: '79 (86 - 7)' },
+            { id: 'c4', label: '72 (79 - 7)' },
+            { id: 'c5', label: '65 (72 - 7)' }
+        ];
+        const cog_mmsePraxiaItems = [
+            { id: 'p1', label: 'Obedece orden escrita: "CIERRE LOS OJOS"' },
+            { id: 'p2', label: 'Copia pentágonos entrelazados (10 ángulos + intersección)' }
+        ];
+        const cog_mocaMemoryWords = ['ROSTRO', 'SEDA', 'IGLESIA', 'CLAVEL', 'ROJO'];
+
+        let cog_state = {
+            mmseChecks: {},
+            tmtScore: 0,
+            memoryChecks: {},
+            wordsVisible: true,
+            fabScore: 0
+        };
+
+        window.cog_switchSubtab = function(tab) {
+            ['mmse', 'moca', 'fab'].forEach(t => {
+                document.getElementById(`cog-panel-${t}`).classList.toggle('hidden', t !== tab);
+                const btn = document.getElementById(`cog-tab-${t}`);
+                btn.className = t === tab
+                    ? 'cog-subtab-btn flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-bold bg-violet-600 text-white transition'
+                    : 'cog-subtab-btn flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+            });
+            if (tab === 'moca') {
+                setTimeout(() => window.cog_drawTMTLines(), 50);
+            }
+        };
+
+        window.cog_autoDetectDateOrientation = function() {
+            const banner = document.getElementById('cog-date-ref-banner');
+            const now = new Date();
+            const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            banner.textContent = `Referencia del sistema: ${now.toLocaleDateString('es-ES', opciones).toUpperCase()}`;
+            banner.classList.remove('hidden');
+        };
+
+        window.cog_renderMMSEAndMemory = function() {
+            const renderGroup = (containerId, items) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = items.map(item => {
+                    const checked = !!cog_state.mmseChecks[item.id];
+                    return `
+                        <label class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition select-none ${checked ? 'bg-violet-50 border-violet-300 text-violet-950' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}">
+                            <input type="checkbox" ${checked ? 'checked' : ''} onchange="cog_toggleMMSEItem('${item.id}', this.checked)"
+                                class="w-4 h-4 rounded text-violet-600 focus:ring-violet-500">
+                            <span class="text-xs font-semibold leading-snug">${item.label}</span>
+                        </label>
+                    `;
+                }).join('');
+            };
+
+            renderGroup('cog-mmse-orientacion-grid', cog_mmseOrientItems);
+            renderGroup('cog-mmse-calculo-grid', cog_mmseCalcItems);
+            renderGroup('cog-mmse-praxia-grid', cog_mmsePraxiaItems);
+
+            // Renderizar tarjetas de memoria MoCA
+            const memContainer = document.getElementById('cog-memory-cards');
+            memContainer.innerHTML = cog_mocaMemoryWords.map((word, idx) => {
+                const checked = !!cog_state.memoryChecks[idx];
+                return `
+                    <label class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${checked ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:bg-slate-50'}">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" ${checked ? 'checked' : ''} onchange="cog_toggleMemoryItem(${idx}, this.checked)"
+                                class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                            <span class="font-mono-code font-bold text-sm ${cog_state.wordsVisible ? 'text-slate-900' : 'text-slate-300 blur-[3px] select-none'}">${word}</span>
+                        </div>
+                        <span class="text-xs font-semibold ${checked ? 'text-indigo-700' : 'text-slate-400'}">${checked ? '+1 pt Evocada' : 'Sin evocar'}</span>
+                    </label>
+                `;
+            }).join('');
+        };
+
+        window.cog_toggleMMSEItem = function(id, val) {
+            cog_state.mmseChecks[id] = val;
+            cog_renderMMSEAndMemory();
+            cog_updateScores();
+        };
+
+        window.cog_toggleMemoryItem = function(idx, val) {
+            cog_state.memoryChecks[idx] = val;
+            cog_renderMMSEAndMemory();
+            cog_updateScores();
+        };
+
+        window.cog_toggleMemoryWords = function() {
+            cog_state.wordsVisible = !cog_state.wordsVisible;
+            const btn = document.getElementById('cog-btn-toggle-words');
+            btn.textContent = cog_state.wordsVisible
+                ? 'Ocultar Palabras Estímulo (Fase Evocación)'
+                : 'Mostrar Palabras Estímulo (Fase Registro)';
+            cog_renderMMSEAndMemory();
+        };
+
+        // --- TMT-B Interactivo (1-A-2-B-3-C-4-D) ---
+        const cog_tmtSequence = ['1', 'A', '2', 'B', '3', 'C', '4', 'D'];
+        const cog_tmtPositions = [
+            { id: '1', x: 14, y: 24 },
+            { id: 'A', x: 38, y: 74 },
+            { id: '2', x: 25, y: 52 },
+            { id: 'B', x: 58, y: 22 },
+            { id: '3', x: 74, y: 66 },
+            { id: 'C', x: 52, y: 50 },
+            { id: '4', x: 86, y: 30 },
+            { id: 'D', x: 84, y: 80 }
+        ];
+        let cog_tmtProgressIdx = 0;
+        let cog_tmtErrors = 0;
+
+        window.cog_renderTMTBoard = function() {
+            const nodesContainer = document.getElementById('cog-tmt-nodes');
+            if (!nodesContainer) return;
+            nodesContainer.innerHTML = cog_tmtPositions.map(pos => {
+                const seqIdx = cog_tmtSequence.indexOf(pos.id);
+                const completed = seqIdx < cog_tmtProgressIdx;
+                return `
+                    <button id="cog-tmt-node-${pos.id}" onclick="cog_handleTMTNodeClick('${pos.id}')"
+                        style="left: ${pos.x}%; top: ${pos.y}%; transform: translate(-50%, -50%);"
+                        class="absolute w-11 h-11 rounded-full font-extrabold text-sm border-2 transition-all shadow-sm flex items-center justify-center
+                        ${completed ? 'bg-violet-600 text-white border-violet-700 scale-105' : 'bg-white text-slate-800 border-slate-400 hover:border-violet-500 hover:bg-violet-50'}">
+                        ${pos.id}
+                    </button>
+                `;
+            }).join('');
+
+            document.getElementById('cog-tmt-next-lbl').textContent = cog_tmtProgressIdx < cog_tmtSequence.length ? cog_tmtSequence[cog_tmtProgressIdx] : 'COMPLETADO';
+            document.getElementById('cog-tmt-errors-lbl').textContent = cog_tmtErrors;
+            cog_drawTMTLines();
+        };
+
+        window.cog_drawTMTLines = function() {
+            const svg = document.getElementById('cog-tmt-svg');
+            if (!svg) return;
+            let linesHtml = '';
+            for (let i = 0; i < cog_tmtProgressIdx - 1; i++) {
+                const p1 = cog_tmtPositions.find(p => p.id === cog_tmtSequence[i]);
+                const p2 = cog_tmtPositions.find(p => p.id === cog_tmtSequence[i + 1]);
+                if (p1 && p2) {
+                    linesHtml += `<line x1="${p1.x}%" y1="${p1.y}%" x2="${p2.x}%" y2="${p2.y}%" stroke="#7c3aed" stroke-width="3" stroke-linecap="round" />`;
+                }
+            }
+            svg.innerHTML = linesHtml;
+        };
+
+        window.cog_handleTMTNodeClick = function(nodeId) {
+            if (cog_tmtProgressIdx >= cog_tmtSequence.length) return;
+            const expected = cog_tmtSequence[cog_tmtProgressIdx];
+            if (nodeId === expected) {
+                cog_tmtProgressIdx++;
+                if (cog_tmtProgressIdx === cog_tmtSequence.length) {
+                    // Puntaje máximo 5 menos penalización por errores
+                    cog_state.tmtScore = Math.max(1, 5 - cog_tmtErrors);
+                    document.getElementById('cog-tmt-status').textContent = `Completado (${cog_state.tmtScore}/5 pts)`;
+                    document.getElementById('cog-tmt-status').className = 'text-xs font-bold text-emerald-700';
+                    window.spa_showToast(`TMT-B completado con ${cog_state.tmtScore}/5 puntos.`, 'success');
+                }
+            } else {
+                cog_tmtErrors++;
+                const btn = document.getElementById(`cog-tmt-node-${nodeId}`);
+                if (btn) {
+                    btn.classList.add('bg-rose-500', 'text-white', 'border-rose-700');
+                    setTimeout(() => cog_renderTMTBoard(), 300);
+                }
+            }
+            cog_renderTMTBoard();
+            cog_updateScores();
+        };
+
+        window.cog_resetTMT = function() {
+            cog_tmtProgressIdx = 0;
+            cog_tmtErrors = 0;
+            cog_state.tmtScore = 0;
+            document.getElementById('cog-tmt-status').textContent = 'Pendiente (0/5 pts)';
+            document.getElementById('cog-tmt-status').className = 'text-xs font-bold text-slate-600';
+            cog_renderTMTBoard();
+            cog_updateScores();
+        };
+
+        // --- FAB Go / No-Go ---
+        window.cog_gngRunning = false;
+        window.cog_gngTimer = null;
+        let cog_gngTrials = [];
+        let cog_gngIdx = -1;
+        let cog_gngStimStart = 0;
+        let cog_gngRespondedCurrent = false;
+        let cog_gngHits = 0;
+        let cog_gngCorrectInhib = 0;
+        let cog_gngImpulsivity = 0;
+        let cog_gngRTs = [];
+
+        window.cog_startGoNoGo = function() {
+            if (window.cog_gngTimer) clearTimeout(window.cog_gngTimer);
+            // Secuencia balanceada de 6 GO y 4 NO-GO
+            cog_gngTrials = ['GO', 'GO', 'NOGO', 'GO', 'NOGO', 'GO', 'GO', 'NOGO', 'GO', 'NOGO'];
+            cog_gngIdx = -1;
+            cog_gngHits = 0;
+            cog_gngCorrectInhib = 0;
+            cog_gngImpulsivity = 0;
+            cog_gngRTs = [];
+            window.cog_gngRunning = true;
+
+            document.getElementById('cog-btn-start-gonogo').disabled = true;
+            document.getElementById('cog-gonogo-tap-btn').disabled = false;
+            cog_nextGoNoGoTrial();
+        };
+
+        window.cog_nextGoNoGoTrial = function() {
+            if (!window.cog_gngRunning) return;
+
+            // Evaluar ensayo anterior si fue NO-GO y no se presionó
+            if (cog_gngIdx >= 0 && cog_gngTrials[cog_gngIdx] === 'NOGO' && !cog_gngRespondedCurrent) {
+                cog_gngCorrectInhib++;
+            }
+
+            cog_gngIdx++;
+            if (cog_gngIdx >= cog_gngTrials.length) {
+                cog_finishGoNoGo();
+                return;
+            }
+
+            cog_gngRespondedCurrent = false;
+            const tipo = cog_gngTrials[cog_gngIdx];
+            const stimBox = document.getElementById('cog-gonogo-stimulus');
+            document.getElementById('cog-gonogo-progress').textContent = `Ensayo: ${cog_gngIdx + 1} / 10`;
+
+            // Pausa interestímulo breve
+            stimBox.className = 'w-32 h-32 flex items-center justify-center rounded-2xl border border-slate-700 text-slate-500 text-xs';
+            stimBox.textContent = '+';
+
+            window.cog_gngTimer = setTimeout(() => {
+                if (!window.cog_gngRunning) return;
+                cog_gngStimStart = performance.now();
+                if (tipo === 'GO') {
+                    stimBox.className = 'w-32 h-32 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-slate-950 font-black text-xl';
+                    stimBox.textContent = 'GO';
+                } else {
+                    stimBox.className = 'w-32 h-32 rounded-2xl bg-rose-600 shadow-lg shadow-rose-600/40 flex items-center justify-center text-white font-black text-xl';
+                    stimBox.textContent = 'NO-GO';
+                }
+                cog_updateGoNoGoUI();
+                window.cog_gngTimer = setTimeout(() => cog_nextGoNoGoTrial(), 1350);
+            }, 450);
+        };
+
+        window.cog_registerGoNoGoTap = function() {
+            if (!window.cog_gngRunning || cog_gngIdx < 0 || cog_gngRespondedCurrent) return;
+            cog_gngRespondedCurrent = true;
+            const tipo = cog_gngTrials[cog_gngIdx];
+            const rt = Math.round(performance.now() - cog_gngStimStart);
+
+            if (tipo === 'GO') {
+                cog_gngHits++;
+                if (rt > 0 && rt < 2000) cog_gngRTs.push(rt);
+            } else {
+                cog_gngImpulsivity++;
+            }
+            cog_updateGoNoGoUI();
+        };
+
+        window.cog_updateGoNoGoUI = function() {
+            document.getElementById('cog-gng-hits').textContent = `${cog_gngHits} / 6`;
+            document.getElementById('cog-gng-inhib').textContent = `${cog_gngCorrectInhib} / 4`;
+            document.getElementById('cog-gng-impulsivity').textContent = `${cog_gngImpulsivity}`;
+            const avgRt = cog_gngRTs.length ? Math.round(cog_gngRTs.reduce((a, b) => a + b, 0) / cog_gngRTs.length) : null;
+            document.getElementById('cog-gng-rt').textContent = avgRt ? `${avgRt} ms` : '-- ms';
+        };
+
+        window.cog_finishGoNoGo = function() {
+            window.cog_gngRunning = false;
+            document.getElementById('cog-btn-start-gonogo').disabled = false;
+            document.getElementById('cog-gonogo-tap-btn').disabled = true;
+
+            const stimBox = document.getElementById('cog-gonogo-stimulus');
+            stimBox.className = 'w-36 h-32 rounded-2xl bg-indigo-950 border border-indigo-500 flex items-center justify-center text-indigo-200 font-bold text-sm text-center px-3';
+            stimBox.textContent = 'Prueba Finalizada';
+
+            // Cálculo puntaje FAB (0 a 5 pts)
+            const rawAccuracy = ((cog_gngHits + cog_gngCorrectInhib) / 10) * 5;
+            cog_state.fabScore = Math.max(0, Math.min(5, Math.round(rawAccuracy)));
+            document.getElementById('cog-gng-score').textContent = `${cog_state.fabScore} / 5 pts`;
+            cog_updateGoNoGoUI();
+            cog_updateScores();
+            window.spa_showToast(`FAB Go/No-Go completado: ${cog_state.fabScore}/5 puntos.`, 'success');
+        };
+
+        window.cog_updateScores = function() {
+            const mmseScore = Object.values(cog_state.mmseChecks).filter(Boolean).length;
+            const memScore = Object.values(cog_state.memoryChecks).filter(Boolean).length;
+            const mocaScore = cog_state.tmtScore + memScore;
+            const fabScore = cog_state.fabScore;
+
+            const totalScore = mmseScore + mocaScore + fabScore;
+            const globalPct = Math.round((totalScore / 30) * 100);
+
+            document.getElementById('cog-mmse-score-lbl').textContent = mmseScore;
+            document.getElementById('cog-moca-score-lbl').textContent = mocaScore;
+            document.getElementById('cog-fab-score-lbl').textContent = fabScore;
+            document.getElementById('cog-mem-score-badge').textContent = `${memScore} / 5 pts`;
+            document.getElementById('cog-total-badge').textContent = `Global: ${globalPct}% (${totalScore}/30)`;
+
+            return { mmseScore, mocaScore, fabScore, totalScore, maxScore: 30, globalPct };
+        };
+
+        window.cog_guardarYSalir = function() {
+            const summary = cog_updateScores();
+            summary.mmseChecks = cog_state.mmseChecks;
+            summary.tmtScore = cog_state.tmtScore;
+            summary.memoryChecks = cog_state.memoryChecks;
+            summary.timestamp = new Date().toISOString();
+
+            localStorage.setItem('neuro_eval_cognitiva', JSON.stringify(summary));
+            window.spa_showToast('Evaluación Cognitiva guardada correctamente.', 'success');
+            window.cambiarVista('vista-inicio');
+        };
+
+        window.cog_loadFromStorage = function() {
+            try {
+                const raw = localStorage.getItem('neuro_eval_cognitiva');
+                if (!raw) return;
+                const d = JSON.parse(raw);
+                cog_state.mmseChecks = d.mmseChecks || {};
+                cog_state.tmtScore = d.tmtScore || 0;
+                cog_state.memoryChecks = d.memoryChecks || {};
+                cog_state.fabScore = d.fabScore || 0;
+                if (cog_state.tmtScore > 0) {
+                    document.getElementById('cog-tmt-status').textContent = `Guardado (${cog_state.tmtScore}/5 pts)`;
+                }
+                document.getElementById('cog-gng-score').textContent = `${cog_state.fabScore} / 5 pts`;
+                cog_renderMMSEAndMemory();
+                cog_updateScores();
+            } catch (e) {}
+        };
+
+        window.cog_resetAllState = function() {
+            cog_state = { mmseChecks: {}, tmtScore: 0, memoryChecks: {}, wordsVisible: true, fabScore: 0 };
+            cog_resetTMT();
+            document.getElementById('cog-gng-score').textContent = '0 / 5 pts';
+            cog_renderMMSEAndMemory();
+            cog_updateScores();
+        };
+
+        // =========================================================================
+        // 3. MÓDULO DE EVALUACIÓN MOTORA EESS (PREFIJO: mot_)
+        // =========================================================================
+        const mot_kapandjiDescriptions = [
+            '1. Falange proximal del dedo índice',
+            '2. Falange media del dedo índice',
+            '3. Punta del dedo índice',
+            '4. Punta del dedo medio',
+            '5. Punta del dedo anular',
+            '6. Punta del dedo meñique',
+            '7. Pliegue interfalángico distal (IFD) del meñique',
+            '8. Pliegue interfalángico proximal (IFP) del meñique',
+            '9. Pliegue metacarpofalángico (MCP) del meñique',
+            '10. Pliegue palmar distal (base del meñique)'
+        ];
+
+        const mot_fmaSubdomains = [
+            { id: 'fma_a', title: 'A. Hombro / Codo / Antebrazo (Reflejos y Sinergias)', max: 36 },
+            { id: 'fma_b', title: 'B. Muñeca (Estabilidad y Flexo-extensión)', max: 10 },
+            { id: 'fma_c', title: 'C. Mano (Prensión en masa, pinza lateral, cilíndrica, esférica)', max: 14 },
+            { id: 'fma_d', title: 'D. Coordinación / Velocidad (Prueba índice-nariz)', max: 6 }
+        ];
+
+        const mot_aratSubdomains = [
+            { id: 'arat_grasp', title: '1. Grasp — Agarre (Bloques 10/2.5/5/7.5cm, pelota, piedra)', max: 18 },
+            { id: 'arat_grip', title: '2. Grip — Prensión (Verter agua, tubos 2.25/1cm, arandela)', max: 12 },
+            { id: 'arat_pinch', title: '3. Pinch — Pinza fina (Canica y balín con dedos 1-2, 1-3, 1-4)', max: 18 },
+            { id: 'arat_gross', title: '4. Gross Movement — Alcance global (Detrás/encima cabeza, boca)', max: 9 }
+        ];
+
+        let mot_state = {
+            kapandjiScore: 0,
+            fmaValues: { fma_a: 0, fma_b: 0, fma_c: 0, fma_d: 0 },
+            aratValues: { arat_grasp: 0, arat_grip: 0, arat_pinch: 0, arat_gross: 0 }
+        };
+
+        let mot_handLandmarker = null;
+        let mot_videoStream = null;
+        let mot_animFrameId = null;
+        let mot_isCamRunning = false;
+
+        window.mot_switchSubtab = function(tab) {
+            ['kapandji', 'fma', 'arat'].forEach(t => {
+                document.getElementById(`mot-panel-${t}`).classList.toggle('hidden', t !== tab);
+                const btn = document.getElementById(`mot-tab-${t}`);
+                btn.className = t === tab
+                    ? 'mot-subtab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-xl text-sm font-bold bg-emerald-600 text-white transition'
+                    : 'mot-subtab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+            });
+        };
+
+        window.mot_renderControls = function() {
+            // Renderizar niveles Kapandji 1-10
+            const kapContainer = document.getElementById('mot-kapandji-levels');
+            kapContainer.innerHTML = mot_kapandjiDescriptions.map((desc, idx) => {
+                const lvl = idx + 1;
+                const active = mot_state.kapandjiScore >= lvl;
+                return `
+                    <button onclick="mot_setKapandjiScore(${lvl})"
+                        class="w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-between transition
+                        ${active ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}">
+                        <span>${desc}</span>
+                        <span class="px-2 py-0.5 rounded-md font-mono-code ${active ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}">Est. ${lvl}</span>
+                    </button>
+                `;
+            }).join('');
+
+            // Renderizar sliders Fugl-Meyer EESS
+            const fmaContainer = document.getElementById('mot-fma-sections');
+            fmaContainer.innerHTML = mot_fmaSubdomains.map(sub => {
+                const val = mot_state.fmaValues[sub.id] || 0;
+                return `
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="text-xs font-bold text-slate-800">${sub.title}</span>
+                            <span class="font-mono-code font-extrabold text-sm text-emerald-700">${val} / ${sub.max}</span>
+                        </div>
+                        <input type="range" min="0" max="${sub.max}" value="${val}"
+                            oninput="mot_updateFMA('${sub.id}', this.value)"
+                            class="w-full accent-emerald-600 cursor-pointer">
+                        <div class="flex justify-between text-[11px] text-slate-400 font-mono-code">
+                            <span>0 (Plejía)</span>
+                            <span>${Math.round(sub.max/2)} (Parcial)</span>
+                            <span>${sub.max} (Normal)</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Renderizar sliders ARAT
+            const aratContainer = document.getElementById('mot-arat-sections');
+            aratContainer.innerHTML = mot_aratSubdomains.map(sub => {
+                const val = mot_state.aratValues[sub.id] || 0;
+                return `
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="text-xs font-bold text-slate-800">${sub.title}</span>
+                            <span class="font-mono-code font-extrabold text-sm text-emerald-700">${val} / ${sub.max}</span>
+                        </div>
+                        <input type="range" min="0" max="${sub.max}" value="${val}"
+                            oninput="mot_updateARAT('${sub.id}', this.value)"
+                            class="w-full accent-emerald-600 cursor-pointer">
+                        <div class="flex justify-between text-[11px] text-slate-400 font-mono-code">
+                            <span>0 (Nulo)</span>
+                            <span>${Math.round(sub.max/2)} (Limitado)</span>
+                            <span>${sub.max} (Funcional)</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.mot_setKapandjiScore = function(lvl) {
+            mot_state.kapandjiScore = lvl;
+            mot_renderControls();
+            mot_updateScores();
+        };
+
+        window.mot_resetKapandji = function() {
+            mot_state.kapandjiScore = 0;
+            mot_renderControls();
+            mot_updateScores();
+        };
+
+        window.mot_updateFMA = function(id, val) {
+            mot_state.fmaValues[id] = Number(val);
+            mot_renderControls();
+            mot_updateScores();
+        };
+
+        window.mot_updateARAT = function(id, val) {
+            mot_state.aratValues[id] = Number(val);
+            mot_renderControls();
+            mot_updateScores();
+        };
+
+        window.mot_updateScores = function() {
+            const kap = mot_state.kapandjiScore;
+            const fma = Object.values(mot_state.fmaValues).reduce((a, b) => a + b, 0);
+            const arat = Object.values(mot_state.aratValues).reduce((a, b) => a + b, 0);
+
+            // Índice normalizado ponderado (Kapandji 20%, FMA-UE 40%, ARAT 40%)
+            const globalPct = Math.round(((kap / 10) * 20) + ((fma / 66) * 40) + ((arat / 57) * 40));
+
+            document.getElementById('mot-kap-score-lbl').textContent = kap;
+            document.getElementById('mot-kap-current-display').textContent = `${kap} / 10`;
+            document.getElementById('mot-fma-score-lbl').textContent = fma;
+            document.getElementById('mot-fma-total-display').textContent = `${fma} / 66`;
+            document.getElementById('mot-arat-score-lbl').textContent = arat;
+            document.getElementById('mot-arat-total-display').textContent = `${arat} / 57`;
+            document.getElementById('mot-total-badge').textContent = `Global: ${globalPct}%`;
+
+            return { kapandjiScore: kap, fmaScore: fma, aratScore: arat, globalPct };
+        };
+
+        // --- Cámara y Detección de 21 Landmarks de Mano (MediaPipe HandLandmarker) ---
+        async function mot_initHandLandmarker() {
+            if (mot_handLandmarker) return mot_handLandmarker;
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+            );
+            mot_handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                numHands: 1
+            });
+            return mot_handLandmarker;
+        }
+
+        window.mot_iniciarCamaraKapandji = async function() {
+            const statusEl = document.getElementById('mot-cam-status');
+            const btnStart = document.getElementById('mot-btn-start-cam');
+            const btnStop = document.getElementById('mot-btn-stop-cam');
+
+            try {
+                btnStart.disabled = true;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Cargando modelo IA 21 landmarks...`;
+
+                await mot_initHandLandmarker();
+
+                mot_videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false
+                });
+
+                const video = document.getElementById('mot-webcam-video');
+                video.srcObject = mot_videoStream;
+                await video.play();
+
+                document.getElementById('mot-cam-placeholder').classList.add('hidden');
+                btnStop.disabled = false;
+                mot_isCamRunning = true;
+
+                statusEl.className = 'inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800';
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span> IA Activa (21 Landmarks)`;
+
+                mot_detectLoop();
+            } catch (err) {
+                console.error('Error iniciando cámara MediaPipe:', err);
+                btnStart.disabled = false;
+                statusEl.className = 'inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-rose-100 text-rose-800';
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-600"></span> Cámara no disponible (Use escala manual)`;
+                window.spa_showToast('No se pudo acceder a la cámara. Puede calificar Kapandji manualmente.', 'warning');
+            }
+        };
+
+        window.mot_detenerCamara = function() {
+            mot_isCamRunning = false;
+            if (mot_animFrameId) {
+                cancelAnimationFrame(mot_animFrameId);
+                mot_animFrameId = null;
+            }
+            if (mot_videoStream) {
+                mot_videoStream.getTracks().forEach(track => track.stop());
+                mot_videoStream = null;
+            }
+            const video = document.getElementById('mot-webcam-video');
+            if (video) video.srcObject = null;
+
+            const canvas = document.getElementById('mot-landmark-canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            const placeholder = document.getElementById('mot-cam-placeholder');
+            if (placeholder) placeholder.classList.remove('hidden');
+
+            const btnStart = document.getElementById('mot-btn-start-cam');
+            const btnStop = document.getElementById('mot-btn-stop-cam');
+            const statusEl = document.getElementById('mot-cam-status');
+            if (btnStart) btnStart.disabled = false;
+            if (btnStop) btnStop.disabled = true;
+            if (statusEl) {
+                statusEl.className = 'inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700';
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-400"></span> Cámara detenida`;
+            }
+        };
+
+        function mot_dist3D(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+        }
+
+        function mot_evaluateKapandjiFromLandmarks(lm) {
+            // Referencia de escala palmar: distancia muñeca (0) a base dedo medio (9)
+            const palmScale = mot_dist3D(lm[0], lm[9]) || 0.15;
+            const thumbTip = lm[4];
+            const threshold = palmScale * 0.28;
+
+            // Puntos anatómicos correspondientes a estadios 1 a 10 de Kapandji
+            const targets = [
+                { stage: 10, pt: lm[17] }, // Base meñique (MCP)
+                { stage: 9,  pt: lm[18] }, // IFP meñique
+                { stage: 8,  pt: lm[19] }, // IFD meñique
+                { stage: 6,  pt: lm[20] }, // Punta meñique
+                { stage: 5,  pt: lm[16] }, // Punta anular
+                { stage: 4,  pt: lm[12] }, // Punta medio
+                { stage: 3,  pt: lm[8]  }, // Punta índice
+                { stage: 2,  pt: lm[7]  }, // Falange media índice
+                { stage: 1,  pt: lm[6]  }  // Falange proximal índice
+            ];
+
+            for (const t of targets) {
+                if (mot_dist3D(thumbTip, t.pt) < threshold) {
+                    return t.stage;
+                }
+            }
+            return 0;
+        }
+
+        const MOT_HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [5,9],[9,10],[10,11],[11,12],
+            [9,13],[13,14],[14,15],[15,16],
+            [13,17],[0,17],[17,18],[18,19],[19,20]
+        ];
+
+        function mot_detectLoop() {
+            if (!mot_isCamRunning) return;
+            const video = document.getElementById('mot-webcam-video');
+            const canvas = document.getElementById('mot-landmark-canvas');
+
+            if (video && canvas && video.readyState >= 2 && mot_handLandmarker) {
+                if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                }
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const results = mot_handLandmarker.detectForVideo(video, performance.now());
+                if (results && results.landmarks && results.landmarks.length > 0) {
+                    const lm = results.landmarks[0];
+                    const handedness = results.handednesses?.[0]?.[0]?.categoryName || 'Detectada';
+                    document.getElementById('mot-handedness-lbl').textContent = handedness === 'Left' ? 'Derecha (Espejo)' : 'Izquierda (Espejo)';
+
+                    // Dibujar conexiones óseas
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
+                    for (const [i, j] of MOT_HAND_CONNECTIONS) {
+                        ctx.beginPath();
+                        ctx.moveTo(lm[i].x * canvas.width, lm[i].y * canvas.height);
+                        ctx.lineTo(lm[j].x * canvas.width, lm[j].y * canvas.height);
+                        ctx.stroke();
+                    }
+
+                    // Dibujar los 21 landmarks (destacando landmark 4 = punta pulgar)
+                    lm.forEach((pt, idx) => {
+                        ctx.beginPath();
+                        ctx.arc(pt.x * canvas.width, pt.y * canvas.height, idx === 4 ? 7 : 4, 0, Math.PI * 2);
+                        ctx.fillStyle = idx === 4 ? '#f43f5e' : '#ffffff';
+                        ctx.fill();
+                        ctx.strokeStyle = '#064e3b';
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                    });
+
+                    const detectedStage = mot_evaluateKapandjiFromLandmarks(lm);
+                    if (detectedStage > mot_state.kapandjiScore) {
+                        mot_setKapandjiScore(detectedStage);
+                    }
+                }
+            }
+            mot_animFrameId = requestAnimationFrame(mot_detectLoop);
+        }
+
+        window.mot_guardarYSalir = function() {
+            const summary = mot_updateScores();
+            summary.fmaValues = mot_state.fmaValues;
+            summary.aratValues = mot_state.aratValues;
+            summary.timestamp = new Date().toISOString();
+
+            localStorage.setItem('neuro_eval_motora', JSON.stringify(summary));
+            window.spa_showToast('Evaluación Motora EESS guardada correctamente.', 'success');
+            window.cambiarVista('vista-inicio');
+        };
+
+        window.mot_loadFromStorage = function() {
+            try {
+                const raw = localStorage.getItem('neuro_eval_motora');
+                if (!raw) return;
+                const d = JSON.parse(raw);
+                mot_state.kapandjiScore = d.kapandjiScore || 0;
+                if (d.fmaValues) mot_state.fmaValues = d.fmaValues;
+                if (d.aratValues) mot_state.aratValues = d.aratValues;
+                mot_renderControls();
+                mot_updateScores();
+            } catch (e) {}
+        };
+
+        window.mot_resetAllState = function() {
+            mot_state = {
+                kapandjiScore: 0,
+                fmaValues: { fma_a: 0, fma_b: 0, fma_c: 0, fma_d: 0 },
+                aratValues: { arat_grasp: 0, arat_grip: 0, arat_pinch: 0, arat_gross: 0 }
+            };
+            mot_renderControls();
+            mot_updateScores();
+        };
+
+        // =========================================================================
+        // 4. MÓDULO DE EVALUACIÓN DE LENGUAJE — PRUEBA RÁPIDA DE AFASIA ART (len_)
+        // =========================================================================
+        const len_comprensionItems = [
+            { id: 'c1', type: 'Orden Simple', text: 'Cierre los ojos.', pts: 1 },
+            { id: 'c2', type: 'Orden Simple', text: 'Levante una mano.', pts: 1 },
+            { id: 'c3', type: 'Orden Simple', text: 'Saque la lengua.', pts: 1 },
+            { id: 'c4', type: 'Orden Compleja (2 pasos)', text: 'Toque su oreja izquierda con su mano derecha.', pts: 1 },
+            { id: 'c5', type: 'Orden Compleja (Secuencial)', text: 'Mire hacia el techo y luego señale la puerta.', pts: 1 },
+            { id: 'c6', type: 'Orden Compleja (Condicional)', text: 'Antes de cerrar el puño, dé dos golpes sobre la mesa.', pts: 1 }
+        ];
+
+        const len_denominacionItems = [
+            {
+                id: 'd1',
+                target: 'Reloj',
+                synonyms: ['reloj', 'reloj de pulsera', 'hora'],
+                svg: `<svg viewBox="0 0 120 120" class="w-24 h-24 mx-auto text-slate-800">
+                        <rect x="46" y="6" width="28" height="22" rx="4" fill="#cbd5e1" stroke="#334155" stroke-width="3"/>
+                        <rect x="46" y="92" width="28" height="22" rx="4" fill="#cbd5e1" stroke="#334155" stroke-width="3"/>
+                        <circle cx="60" cy="60" r="36" fill="#ffffff" stroke="#1e293b" stroke-width="4"/>
+                        <circle cx="60" cy="60" r="3" fill="#e11d48"/>
+                        <line x1="60" y1="60" x2="60" y2="36" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+                        <line x1="60" y1="60" x2="78" y2="60" stroke="#e11d48" stroke-width="3" stroke-linecap="round"/>
+                      </svg>`
+            },
+            {
+                id: 'd2',
+                target: 'Llave',
+                synonyms: ['llave', 'llaves', 'cerradura'],
+                svg: `<svg viewBox="0 0 120 120" class="w-24 h-24 mx-auto text-slate-800">
+                        <circle cx="36" cy="60" r="20" fill="#fef3c7" stroke="#b45309" stroke-width="4"/>
+                        <circle cx="32" cy="60" r="6" fill="#ffffff" stroke="#b45309" stroke-width="3"/>
+                        <path d="M56 56 H104 V66 H94 V76 H84 V66 H76 V74 H66 V66 H56 Z" fill="#f59e0b" stroke="#b45309" stroke-width="3" stroke-linejoin="round"/>
+                      </svg>`
+            },
+            {
+                id: 'd3',
+                target: 'Tijeras',
+                synonyms: ['tijera', 'tijeras'],
+                svg: `<svg viewBox="0 0 120 120" class="w-24 h-24 mx-auto text-slate-800">
+                        <circle cx="34" cy="38" r="14" fill="none" stroke="#e11d48" stroke-width="5"/>
+                        <circle cx="34" cy="82" r="14" fill="none" stroke="#e11d48" stroke-width="5"/>
+                        <line x1="46" y1="45" x2="98" y2="78" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+                        <line x1="46" y1="75" x2="98" y2="42" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+                        <circle cx="64" cy="60" r="3.5" fill="#94a3b8"/>
+                      </svg>`
+            }
+        ];
+
+        const len_repeticionItems = [
+            { id: 'r1', level: 'Palabra Simple', stimulus: 'Hospital', hint: 'Evaluar articulación y fidelidad fonémica' },
+            { id: 'r2', level: 'Polisílabo Complejo', stimulus: 'Otorrinolaringólogo', hint: 'Detectar parafasias literales o secuenciación silábica' },
+            { id: 'r3', level: 'Frase Estructurada', stimulus: 'El gato negro duerme debajo de la mesa.', hint: 'Evaluar bucle fonológico y gramática' }
+        ];
+
+        let len_state = {
+            comprensionChecks: {},
+            denominacionScores: { d1: 0, d2: 0, d3: 0 },
+            repeticionScores: { r1: 0, r2: 0, r3: 0 },
+            animalsList: [],
+            directAnimalCount: 0
+        };
+
+        // Variables de hardware de voz y temporizador
+        let len_recognition = null;
+        let len_srMode = null; // 'denom' | 'fluencia' | null
+        window.len_fluTimerInterval = null;
+        window.len_fluRunning = false;
+        let len_fluSecondsLeft = 60;
+
+        window.len_switchSubtab = function(tab) {
+            // Detener reconocimiento de voz al cambiar de subpestaña para evitar cruces
+            window.len_detenerReconocimientoVoz();
+
+            ['comprension', 'denominacion', 'repeticion', 'fluencia'].forEach(t => {
+                document.getElementById(`len-panel-${t}`).classList.toggle('hidden', t !== tab);
+                const btn = document.getElementById(`len-tab-${t}`);
+                btn.className = t === tab
+                    ? 'len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 text-white transition'
+                    : 'len-subtab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+            });
+        };
+
+        /**
+         * Síntesis de voz clínica (TTS) en español para leer órdenes o estímulos de repetición
+         */
+        window.len_speakStimulus = function(texto) {
+            if (!('speechSynthesis' in window)) {
+                window.spa_showToast('Síntesis de voz no soportada en este navegador.', 'warning');
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'es-ES';
+            utterance.rate = 0.92;
+            window.speechSynthesis.speak(utterance);
+        };
+
+        window.len_renderAllSubpanels = function() {
+            // 1. Comprensión de órdenes
+            const compList = document.getElementById('len-comprension-list');
+            compList.innerHTML = len_comprensionItems.map(item => {
+                const checked = !!len_state.comprensionChecks[item.id];
+                return `
+                    <div class="p-4 rounded-xl border transition flex items-center justify-between gap-3 ${checked ? 'bg-rose-50/70 border-rose-300' : 'bg-slate-50 border-slate-200'}">
+                        <div class="space-y-1">
+                            <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">${item.type}</span>
+                            <p class="text-sm font-bold text-slate-900">"${item.text}"</p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="len_speakStimulus('${item.text.replace(/'/g, "\\'")}')" title="Escuchar orden (TTS)"
+                                class="p-2 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition">
+                                <i data-lucide="volume-2" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="len_toggleComprension('${item.id}')"
+                                class="px-3 py-2 rounded-lg text-xs font-bold transition ${checked ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'}">
+                                ${checked ? 'Ejecuta (+1 pt)' : 'Marcar Logrado'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 2. Denominación Visual
+            const denomGrid = document.getElementById('len-denominacion-grid');
+            denomGrid.innerHTML = len_denominacionItems.map(item => {
+                const sc = len_state.denominacionScores[item.id] ?? 0;
+                return `
+                    <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between text-center space-y-4">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Estímulo Visual</span>
+                            <div class="my-3 p-4 rounded-xl bg-white border border-slate-200 shadow-inner">
+                                ${item.svg}
+                            </div>
+                            <h4 class="text-base font-extrabold text-slate-900">${item.target}</h4>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-200">
+                            <button onclick="len_setDenomScore('${item.id}', 0)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 0 ? 'bg-rose-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                0 • Anomia
+                            </button>
+                            <button onclick="len_setDenomScore('${item.id}', 1)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 1 ? 'bg-amber-500 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                1 • Parafasia
+                            </button>
+                            <button onclick="len_setDenomScore('${item.id}', 2)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 2 ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                2 • Correcto
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 3. Repetición Verbal
+            const repList = document.getElementById('len-repeticion-list');
+            repList.innerHTML = len_repeticionItems.map(item => {
+                const sc = len_state.repeticionScores[item.id] ?? 0;
+                return `
+                    <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-4">
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-100 text-rose-800">${item.level}</span>
+                                <button onclick="len_speakStimulus('${item.stimulus.replace(/'/g, "\\'")}')" title="Reproducir estímulo"
+                                    class="p-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition">
+                                    <i data-lucide="volume-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <p class="text-base font-extrabold text-slate-900">"${item.stimulus}"</p>
+                            <p class="text-xs text-slate-500">${item.hint}</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-200">
+                            <button onclick="len_setRepScore('${item.id}', 0)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 0 ? 'bg-rose-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                0 • Fallo
+                            </button>
+                            <button onclick="len_setRepScore('${item.id}', 1)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 1 ? 'bg-amber-500 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                1 • Parcial
+                            </button>
+                            <button onclick="len_setRepScore('${item.id}', 2)" class="py-2 px-1 rounded-lg text-[11px] font-bold transition ${sc === 2 ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}">
+                                2 • Exacto
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 4. Etiquetas de animales en Fluencia
+            len_renderAnimalTags();
+            if (window.lucide) window.lucide.createIcons();
+        };
+
+        window.len_toggleComprension = function(id) {
+            len_state.comprensionChecks[id] = !len_state.comprensionChecks[id];
+            len_renderAllSubpanels();
+            len_updateScores();
+        };
+
+        window.len_setDenomScore = function(id, pts) {
+            len_state.denominacionScores[id] = pts;
+            len_renderAllSubpanels();
+            len_updateScores();
+        };
+
+        window.len_setRepScore = function(id, pts) {
+            len_state.repeticionScores[id] = pts;
+            len_renderAllSubpanels();
+            len_updateScores();
+        };
+
+        // --- Reconocimiento de Voz (SpeechRecognition) para Denominación y Fluencia ---
+        function len_normalizeText(str) {
+            return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zñ\s]/g, "").trim();
+        }
+
+        window.len_detenerReconocimientoVoz = function() {
+            if (len_recognition) {
+                try { len_recognition.onend = null; len_recognition.stop(); } catch (e) {}
+                len_recognition = null;
+            }
+            len_srMode = null;
+
+            const btnDenom = document.getElementById('len-btn-mic-denom');
+            const lblDenom = document.getElementById('len-mic-denom-lbl');
+            const dotDenom = document.getElementById('len-denom-mic-dot');
+            if (btnDenom) btnDenom.classList.remove('len-mic-active');
+            if (lblDenom) lblDenom.textContent = 'Activar Micrófono Voz';
+            if (dotDenom) dotDenom.className = 'w-2.5 h-2.5 rounded-full bg-slate-400';
+
+            const lblFlu = document.getElementById('len-flu-mic-lbl');
+            if (lblFlu) lblFlu.textContent = 'Dictado por Voz: Off';
+        };
+
+        window.len_toggleSpeechDenom = function() {
+            if (len_srMode === 'denom') {
+                window.len_detenerReconocimientoVoz();
+                return;
+            }
+            window.len_detenerReconocimientoVoz();
+
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                window.spa_showToast('Reconocimiento de voz no soportado en este navegador. Use los botones clínicos.', 'warning');
+                return;
+            }
+
+            len_srMode = 'denom';
+            len_recognition = new SpeechRec();
+            len_recognition.lang = 'es-ES';
+            len_recognition.continuous = true;
+            len_recognition.interimResults = true;
+
+            const btn = document.getElementById('len-btn-mic-denom');
+            const lbl = document.getElementById('len-mic-denom-lbl');
+            const dot = document.getElementById('len-denom-mic-dot');
+            const transcriptEl = document.getElementById('len-denom-transcript-text');
+
+            btn.classList.add('len-mic-active');
+            lbl.textContent = 'Escuchando... (Detener)';
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping';
+            transcriptEl.textContent = 'Hable claramente nombrando los objetos en pantalla...';
+
+            len_recognition.onresult = (event) => {
+                let fullTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    fullTranscript += event.results[i][0].transcript + ' ';
+                }
+                const clean = len_normalizeText(fullTranscript);
+                transcriptEl.textContent = `"${fullTranscript.trim()}"`;
+
+                let autoMatched = false;
+                len_denominacionItems.forEach(item => {
+                    if (item.synonyms.some(syn => clean.includes(syn))) {
+                        if (len_state.denominacionScores[item.id] < 2) {
+                            len_state.denominacionScores[item.id] = 2;
+                            autoMatched = true;
+                        }
+                    }
+                });
+                if (autoMatched) {
+                    len_renderAllSubpanels();
+                    len_updateScores();
+                }
+            };
+
+            len_recognition.onerror = () => {
+                window.len_detenerReconocimientoVoz();
+            };
+
+            len_recognition.onend = () => {
+                if (len_srMode === 'denom') {
+                    try { len_recognition.start(); } catch (e) {}
+                }
+            };
+
+            try {
+                len_recognition.start();
+            } catch (e) {
+                window.len_detenerReconocimientoVoz();
+            }
+        };
+
+        // --- Fluencia Semántica de Animales en 60 Segundos ---
+        window.len_startFluenciaTimer = function() {
+            if (window.len_fluRunning) return;
+            window.len_fluRunning = true;
+            len_fluSecondsLeft = 60;
+            document.getElementById('len-btn-flu-start').disabled = true;
+            len_updateFluenciaTimerUI();
+
+            window.len_fluTimerInterval = setInterval(() => {
+                len_fluSecondsLeft--;
+                len_updateFluenciaTimerUI();
+                if (len_fluSecondsLeft <= 0) {
+                    clearInterval(window.len_fluTimerInterval);
+                    window.len_fluTimerInterval = null;
+                    window.len_fluRunning = false;
+                    document.getElementById('len-btn-flu-start').disabled = false;
+                    window.len_detenerReconocimientoVoz();
+                    window.spa_showToast('¡Tiempo completado (60s)! Fluencia semántica registrada.', 'success');
+                }
+            }, 1000);
+        };
+
+        window.len_updateFluenciaTimerUI = function() {
+            const mins = String(Math.floor(len_fluSecondsLeft / 60)).padStart(2, '0');
+            const secs = String(len_fluSecondsLeft % 60).padStart(2, '0');
+            document.getElementById('len-flu-timer-display').textContent = `${mins}:${secs}`;
+            document.getElementById('len-flu-progress-bar').style.width = `${(len_fluSecondsLeft / 60) * 100}%`;
+        };
+
+        window.len_resetFluencia = function() {
+            if (window.len_fluTimerInterval) {
+                clearInterval(window.len_fluTimerInterval);
+                window.len_fluTimerInterval = null;
+            }
+            window.len_fluRunning = false;
+            window.len_detenerReconocimientoVoz();
+            len_fluSecondsLeft = 60;
+            document.getElementById('len-btn-flu-start').disabled = false;
+            len_updateFluenciaTimerUI();
+            len_state.animalsList = [];
+            len_state.directAnimalCount = 0;
+            len_renderAnimalTags();
+            len_updateScores();
+        };
+
+        window.len_toggleSpeechFluencia = function() {
+            if (len_srMode === 'fluencia') {
+                window.len_detenerReconocimientoVoz();
+                return;
+            }
+            window.len_detenerReconocimientoVoz();
+
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                window.spa_showToast('Dictado por voz no soportado en este navegador.', 'warning');
+                return;
+            }
+
+            len_srMode = 'fluencia';
+            len_recognition = new SpeechRec();
+            len_recognition.lang = 'es-ES';
+            len_recognition.continuous = true;
+            len_recognition.interimResults = false;
+
+            document.getElementById('len-flu-mic-lbl').textContent = 'Dictado por Voz: Escuchando...';
+
+            len_recognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        const rawText = event.results[i][0].transcript;
+                        const words = len_normalizeText(rawText).split(/\s+/).filter(w => w.length >= 3);
+                        words.forEach(w => len_registerUniqueAnimal(w));
+                    }
+                }
+            };
+
+            len_recognition.onend = () => {
+                if (len_srMode === 'fluencia') {
+                    try { len_recognition.start(); } catch (e) {}
+                }
+            };
+
+            try { len_recognition.start(); } catch (e) { window.len_detenerReconocimientoVoz(); }
+        };
+
+        window.len_registerUniqueAnimal = function(word) {
+            const clean = len_normalizeText(word);
+            if (!clean) return;
+            // Evitar duplicados (perseveraciones no puntúan en fluencia verbal)
+            if (!len_state.animalsList.includes(clean)) {
+                len_state.animalsList.push(clean);
+                len_renderAnimalTags();
+                len_updateScores();
+            }
+        };
+
+        window.len_addAnimalManual = function() {
+            const input = document.getElementById('len-flu-input');
+            const val = input.value.trim();
+            if (!val) return;
+            len_registerUniqueAnimal(val);
+            input.value = '';
+            input.focus();
+        };
+
+        window.len_removeAnimalTag = function(idx) {
+            len_state.animalsList.splice(idx, 1);
+            len_renderAnimalTags();
+            len_updateScores();
+        };
+
+        window.len_adjustDirectAnimalCount = function(delta) {
+            len_state.directAnimalCount = Math.max(0, len_state.directAnimalCount + delta);
+            len_renderAnimalTags();
+            len_updateScores();
+        };
+
+        window.len_renderAnimalTags = function() {
+            const container = document.getElementById('len-flu-tags-container');
+            const totalAnimals = len_state.animalsList.length + len_state.directAnimalCount;
+            document.getElementById('len-flu-count-lbl').textContent = totalAnimals;
+
+            if (len_state.animalsList.length === 0 && len_state.directAnimalCount === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">Aún no se han registrado animales en esta sesión.</span>`;
+                return;
+            }
+
+            let html = len_state.animalsList.map((animal, idx) => `
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-900 border border-rose-200 text-xs font-semibold capitalize">
+                    ${animal}
+                    <button onclick="len_removeAnimalTag(${idx})" class="text-rose-400 hover:text-rose-700 font-bold">×</button>
+                </span>
+            `).join('');
+
+            if (len_state.directAnimalCount > 0) {
+                html += `<span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                    +${len_state.directAnimalCount} registrados por conteo directo
+                </span>`;
+            }
+            container.innerHTML = html;
+        };
+
+        window.len_computeFluenciaARTScore = function(count) {
+            if (count >= 15) return 6;
+            if (count >= 10) return 4;
+            if (count >= 5) return 2;
+            return 0;
+        };
+
+        window.len_updateScores = function() {
+            const comprensionScore = Object.values(len_state.comprensionChecks).filter(Boolean).length;
+            const denominacionScore = Object.values(len_state.denominacionScores).reduce((a, b) => a + b, 0);
+            const repeticionScore = Object.values(len_state.repeticionScores).reduce((a, b) => a + b, 0);
+            const animalCount = len_state.animalsList.length + len_state.directAnimalCount;
+            const fluenciaScore = len_computeFluenciaARTScore(animalCount);
+
+            const totalScore = comprensionScore + denominacionScore + repeticionScore + fluenciaScore;
+            const globalPct = Math.round((totalScore / 24) * 100);
+
+            let severityLabel = 'Lenguaje Preservado (Sin Afasia)';
+            if (totalScore <= 8) severityLabel = 'Afasia Severa / Global';
+            else if (totalScore <= 15) severityLabel = 'Afasia Moderada';
+            else if (totalScore <= 20) severityLabel = 'Afasia Leve / Anomia Residual';
+
+            document.getElementById('len-comp-score-lbl').textContent = comprensionScore;
+            document.getElementById('len-denom-score-lbl').textContent = denominacionScore;
+            document.getElementById('len-rep-score-lbl').textContent = repeticionScore;
+            document.getElementById('len-flu-score-lbl').textContent = fluenciaScore;
+            document.getElementById('len-flu-art-pts-badge').textContent = `Puntaje ART: ${fluenciaScore} / 6 pts`;
+            document.getElementById('len-total-badge').textContent = `Global ART: ${globalPct}% (${totalScore}/24)`;
+
+            return {
+                comprensionScore,
+                denominacionScore,
+                repeticionScore,
+                fluenciaScore,
+                animalCount,
+                animalsList: len_state.animalsList,
+                totalScore,
+                maxScore: 24,
+                globalPct,
+                severityLabel
+            };
+        };
+
+        window.len_guardarYSalir = function() {
+            const summary = len_updateScores();
+            summary.comprensionChecks = len_state.comprensionChecks;
+            summary.denominacionScores = len_state.denominacionScores;
+            summary.repeticionScores = len_state.repeticionScores;
+            summary.directAnimalCount = len_state.directAnimalCount;
+            summary.timestamp = new Date().toISOString();
+
+            localStorage.setItem('neuro_eval_lenguaje', JSON.stringify(summary));
+            window.spa_showToast('Evaluación de Lenguaje (ART) guardada correctamente.', 'success');
+            window.cambiarVista('vista-inicio');
+        };
+
+        window.len_loadFromStorage = function() {
+            try {
+                const raw = localStorage.getItem('neuro_eval_lenguaje');
+                if (!raw) return;
+                const d = JSON.parse(raw);
+                len_state.comprensionChecks = d.comprensionChecks || {};
+                len_state.denominacionScores = d.denominacionScores || { d1: 0, d2: 0, d3: 0 };
+                len_state.repeticionScores = d.repeticionScores || { r1: 0, r2: 0, r3: 0 };
+                len_state.animalsList = Array.isArray(d.animalsList) ? d.animalsList : [];
+                len_state.directAnimalCount = d.directAnimalCount || 0;
+                len_renderAllSubpanels();
+                len_updateScores();
+            } catch (e) {}
+        };
+
+        window.len_resetAllState = function() {
+            len_state = {
+                comprensionChecks: {},
+                denominacionScores: { d1: 0, d2: 0, d3: 0 },
+                repeticionScores: { r1: 0, r2: 0, r3: 0 },
+                animalsList: [],
+                directAnimalCount: 0
+            };
+            len_resetFluencia();
+            len_renderAllSubpanels();
+            len_updateScores();
+        };
+
+        // =========================================================================
+        // 5. INICIALIZACIÓN MAESTRA AL CARGAR EL DOCUMENTO
+        // =========================================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) window.lucide.createIcons();
+
+            // Inicializar vistas y estados de los 3 módulos evaluativos
+            cog_renderMMSEAndMemory();
+            cog_renderTMTBoard();
+            cog_loadFromStorage();
+
+            mot_renderControls();
+            mot_loadFromStorage();
+
+            len_renderAllSubpanels();
+            len_loadFromStorage();
+
+            // Cargar y renderizar vista inicial consolidada
+            ini_loadAllAssessmentsAndRender();
+        });
+    </script>
+</body>
+</html>
